@@ -7,6 +7,10 @@
   "bin": {
     "umd": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "link": "npm run build && chmod +x dist/cli.js && npm link",
@@ -31,8 +35,16 @@
     "image-to-markdown",
     "document-converter"
   ],
-  "author": "",
+  "author": "Gaurab Subedi",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SubediGaurab/UnifiedMarkdown.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SubediGaurab/UnifiedMarkdown/issues"
+  },
+  "homepage": "https://github.com/SubediGaurab/UnifiedMarkdown#readme",
   "dependencies": {
     "@google/genai": "^1.30.0",
     "@inquirer/prompts": "^7.2.0",

@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
@@ -37,3 +36,6 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# npm package tarballs
+*.tgz
