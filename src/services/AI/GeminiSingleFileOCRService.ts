@@ -45,10 +45,11 @@ export class GeminiSingleFileOCRService implements IGeminiOCRService {
 You are an expert Document Digitizer.
 
 ### Task
-Convert the image to Markdown using your best judgment to reflect the original content, structure, and context.
+Convert the attached file to Markdown using your best judgment to reflect the original content, structure, and context.
 
 ### Guidelines
 - **Styles**: Apply Markdown formatting that best fits the visual hierarchy (e.g., headers, lists, blockquotes, bold/italics, etc.).
+- **Text**: Extract all text
 - **Non-Text**: Insert concise descriptions for visual elements (e.g., \`[Image: Logo]\`, \`[Signature]\`, \`[Stamp]\`, etc.).
 - **Tables**: Represent tabular data using standard Markdown syntax.
 - **Output**: Return ONLY the Markdown content.`,
