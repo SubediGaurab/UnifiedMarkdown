@@ -1,11 +1,12 @@
 # UnifiedMarkdown (umd)
 
-AI-powered CLI tool to convert images and documents to Markdown using Google Gemini.
+AI-powered CLI tool to convert images, PDFs, and Word documents to Markdown using Google Gemini.
 
 ## Features
 
 - Convert images (PNG, JPG, JPEG, WEBP, GIF, BMP, TIFF, SVG) to Markdown
 - Convert PDF documents to Markdown
+- Convert DOCX files to Markdown with embedded image captions and chart descriptions
 - Batch process entire directories
 - Powered by Google Gemini AI for accurate text extraction
 - Automatic backup of existing `.md` files
@@ -92,6 +93,12 @@ Convert a PDF to Markdown:
 umd convert document.pdf
 ```
 
+Convert a Word document to Markdown:
+
+```bash
+umd convert document.docx
+```
+
 ### Convert with Absolute Path
 
 ```bash
@@ -128,3 +135,4 @@ If a `.md` file already exists, it's automatically backed up with a timestamp:
 
 ### Documents
 - PDF (`.pdf`)
+- Word (`.docx`)

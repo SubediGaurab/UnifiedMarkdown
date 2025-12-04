@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import { IOCRService } from '../../interfaces/IOCRService.js';
 import { ImageOCRService } from './ImageOCRService.js';
 import { PdfOCRService } from './PdfOCRService.js';
+import { DocxConversionService } from './DocxConversionService.js';
 import { DirectoryOCRService } from './DirectoryOCRService.js';
 
 export class OCRServiceFactory {
@@ -18,6 +19,10 @@ export class OCRServiceFactory {
 
         if (ext === 'pdf') {
             return new PdfOCRService();
+        }
+
+        if (ext === 'docx') {
+            return new DocxConversionService();
         }
 
         throw new Error(`Unsupported file type: .${ext}`);
