@@ -2,6 +2,12 @@ import { GoogleGenAI } from '@google/genai';
 import { logger } from '../../utils/logger.js';
 import { ConfigService } from '../ConfigService.js';
 
+export interface SlideImage {
+    filename: string;
+    buffer: Buffer;
+    contentType: string;
+}
+
 /**
  * Gemini service for text-based operations (summaries, captions, etc.)
  * Separated from OCR service for single responsibility
@@ -128,6 +134,77 @@ Return ONLY a concise caption describing the chart (e.g., "A clustered bar chart
             return response.text?.trim() || 'Chart';
         } catch (error) {
             logger.error(`Chart description generation failed: ${error}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate markdown content from PPTX slide XML and images
+     */
+    async generateSlideContent(
+        slideNumber: number,
+        slideXml: string,
+        notesXml: string | null,
+        images: SlideImage[]
+    ): Promise<string> {
+        try {
+            logger.debug(`Generating content for slide ${slideNumber}...`);
+
+            // Build content parts: text prompt + images
+            const parts: any[] = [];
+
+            // Add images first (if any)
+            for (const image of images) {
+                parts.push({
+                    inlineData: {
+                        mimeType: image.contentType,
+                        data: image.buffer.toString('base64'),
+                    },
+                });
+            }
+
+            // Add the text prompt with XML
+            const prompt = `You are converting a PowerPoint slide to Markdown.
+
+## Slide ${slideNumber} XML Content:
+\`\`\`xml
+${slideXml}
+\`\`\`
+
+${notesXml
+                    ? `## Speaker Notes XML:
+\`\`\`xml
+${notesXml}
+\`\`\`
+`
+                    : ''
+                }
+
+${images.length > 0
+                    ? `## Images
+This slide contains ${images.length} image(s) shown above. Describe each image concisely.
+`
+                    : ''
+                }
+
+## Instructions:
+1. Extract the slide title and all text content from the XML
+2. Format as Markdown with "## Slide ${slideNumber}: [Title]" as the header
+3. Convert bullet points to Markdown lists
+4. If there are speaker notes, add them under "**Speaker Notes:**"
+5. For each image, add a description like "[Image: description]"
+6. Return ONLY the Markdown content, no explanations`;
+
+            parts.push({ text: prompt });
+
+            const response = await this.genAI.models.generateContent({
+                model: 'gemini-3-pro-preview',
+                contents: [{ role: 'user', parts }],
+            });
+
+            return response.text?.trim() || `## Slide ${slideNumber}\n\n[Empty slide]`;
+        } catch (error) {
+            logger.error(`Slide content generation failed: ${error}`);
             throw error;
         }
     }

@@ -4,6 +4,7 @@ import { ImageOCRService } from './ImageOCRService.js';
 import { PdfOCRService } from './PdfOCRService.js';
 import { DocxConversionService } from './DocxConversionService.js';
 import { DirectoryOCRService } from './DirectoryOCRService.js';
+import { PptxOCRService } from './PptxOCRService.js';
 
 export class OCRServiceFactory {
     public static getService(inputPath: string): IOCRService {
@@ -23,6 +24,10 @@ export class OCRServiceFactory {
 
         if (ext === 'docx') {
             return new DocxConversionService();
+        }
+
+        if (['ppt', 'pptx'].includes(ext || '')) {
+            return new PptxOCRService();
         }
 
         throw new Error(`Unsupported file type: .${ext}`);

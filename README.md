@@ -16,6 +16,10 @@ AI-powered CLI tool to convert images, PDFs, and Word documents to Markdown usin
 
 - Node.js >= 18.0.0
 - Google Gemini API key (free tier available at [Google AI Studio](https://aistudio.google.com/apikey))
+- LibreOffice (for PPTX conversion):
+  - Ubuntu/Debian: `sudo apt install libreoffice`
+  - MacOS: `brew install libreoffice`
+  - Windows: Install from official website
 
 ## Installation
 
@@ -136,3 +140,4 @@ If a `.md` file already exists, it's automatically backed up with a timestamp:
 ### Documents
 - PDF (`.pdf`)
 - Word (`.docx`)
+- PowerPoint (`.pptx`)

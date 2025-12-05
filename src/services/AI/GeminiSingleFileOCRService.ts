@@ -4,7 +4,7 @@ import { ConfigService } from '../ConfigService.js';
 import * as fs from 'fs';
 
 export interface IGeminiOCRService {
-    extractText(filePath: string, mimeType: string): Promise<string>;
+    extractText(filePath: string, mimeType: string, customSystemPrompt?: string): Promise<string>;
 }
 
 export class GeminiSingleFileOCRService implements IGeminiOCRService {
@@ -17,7 +17,7 @@ export class GeminiSingleFileOCRService implements IGeminiOCRService {
         });
     }
 
-    async extractText(filePath: string, mimeType: string): Promise<string> {
+    async extractText(filePath: string, mimeType: string, customSystemPrompt?: string): Promise<string> {
         try {
             logger.debug(`Starting Gemini Single File OCR for ${filePath}`);
 
@@ -41,7 +41,7 @@ export class GeminiSingleFileOCRService implements IGeminiOCRService {
                     },
                     systemInstruction: [
                         {
-                            text: `### Role
+                            text: customSystemPrompt || `### Role
 You are an expert Document Digitizer.
 
 ### Task

@@ -1,6 +1,6 @@
 # UnifiedMarkdown (umd)
 
-AI-powered CLI to convert images, PDFs, and DOCX files to Markdown using Google Gemini.
+AI-powered CLI to convert images, PDFs, DOCX, and PPTX files to Markdown using Google Gemini.
 
 ## Project Structure
 
@@ -13,19 +13,20 @@ src/
 │   └── IOCRService.ts              # OCR service contract
 ├── services/
 │   ├── AI/
-│   │   ├── GeminiOCRService.ts     # Gemini vision OCR
-│   │   └── GeminiTextService.ts    # Text ops (summaries, captions)
+│   │   ├── GeminiSingleFileOCRService.ts  # Gemini vision OCR
+│   │   └── GeminiTextService.ts           # Text ops (summaries, captions)
 │   ├── OCR/
 │   │   ├── OCRServiceFactory.ts    # Factory for file type routing
 │   │   ├── ImageOCRService.ts      # Image conversion
 │   │   ├── PdfOCRService.ts        # PDF conversion (page-by-page)
 │   │   ├── DocxConversionService.ts # DOCX via mammoth.js
+│   │   ├── PptxOCRService.ts       # PPTX via LibreOffice -> PDF conversion
 │   │   └── DirectoryOCRService.ts  # Batch processing
 │   ├── ConfigService.ts            # API key (~/.umd/config.json)
 │   └── MarkdownSaverService.ts     # Output with backup
 └── utils/
     └── logger.ts                   # Logging utility
-```
+
 
 ## Key Patterns
 
@@ -36,9 +37,10 @@ src/
 ## SOLID Principles
 
 **Single Responsibility** - Each service does one thing:
-- `GeminiOCRService` - only extracts text via Gemini vision
+- `GeminiSingleFileOCRService` - only extracts text via Gemini vision
 - `MarkdownSaverService` - only handles file output with backups
 - `DocxConversionService` - only converts DOCX files
+- `PptxOCRService` - only converts PPTX to PDF via LibreOffice
 
 **Open/Closed** - Add new file types without modifying existing code:
 ```typescript
@@ -78,7 +80,7 @@ umd convert <path>     # Convert file or directory
 ## Supported Formats
 
 - **Images**: PNG, JPG, JPEG, WEBP, GIF, BMP, TIFF, SVG
-- **Documents**: PDF, DOCX
+- **Documents**: PDF, DOCX, PPTX
 
 ## Adding New File Types
 
@@ -93,3 +95,4 @@ umd convert <path>     # Convert file or directory
 - Sharp (image processing)
 - Mammoth.js (DOCX parsing)
 - Turndown (HTML to Markdown)
+- LibreOffice (headless conversion)
