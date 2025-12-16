@@ -33,7 +33,9 @@ async function main() {
 
   program
     .name('umd')
-    .description('UnifiedMarkdown - Convert images and PDFs to Markdown using AI')
+    .description(
+      'UnifiedMarkdown - Convert images and PDFs to Markdown using AI'
+    )
     .version(version);
 
   registerSetupCommand(program);

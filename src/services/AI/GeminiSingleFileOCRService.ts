@@ -4,44 +4,57 @@ import { ConfigService } from '../ConfigService.js';
 import * as fs from 'fs';
 
 export interface IGeminiOCRService {
-    extractText(filePath: string, mimeType: string, customSystemPrompt?: string): Promise<string>;
+  extractText(
+    filePath: string,
+    mimeType: string,
+    customSystemPrompt?: string
+  ): Promise<string>;
 }
 
 export class GeminiSingleFileOCRService implements IGeminiOCRService {
-    private genAI: GoogleGenAI;
+  private genAI: GoogleGenAI;
 
-    constructor() {
-        const apiKey = ConfigService.getApiKey();
-        this.genAI = new GoogleGenAI({
-            apiKey: apiKey,
-        });
-    }
+  constructor() {
+    const apiKey = ConfigService.getApiKey();
+    this.genAI = new GoogleGenAI({
+      apiKey: apiKey,
+    });
+  }
 
-    async extractText(filePath: string, mimeType: string, customSystemPrompt?: string): Promise<string> {
-        try {
-            logger.debug(`Starting Gemini Single File OCR for ${filePath}`);
+  async extractText(
+    filePath: string,
+    mimeType: string,
+    customSystemPrompt?: string
+  ): Promise<string> {
+    try {
+      logger.debug(`Starting Gemini Single File OCR for ${filePath}`);
 
-            const base64Data = fs.readFileSync(filePath, { encoding: 'base64' });
+      const base64Data = fs.readFileSync(filePath, { encoding: 'base64' });
 
-            const contents = [
-                {
-                    inlineData: {
-                        mimeType: mimeType,
-                        data: base64Data,
-                    },
-                },
-            ];
+      const contents = [
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64Data,
+          },
+        },
+      ];
 
-            const response = await this.genAI.models.generateContent({
-                model: 'gemini-3-pro-preview',
-                contents: contents,
-                config: {
-                    thinkingConfig: {
-                        thinkingLevel: ThinkingLevel.HIGH,
-                    },
-                    systemInstruction: [
-                        {
-                            text: customSystemPrompt || `### Role
+      const model = ConfigService.getOcrModel();
+      logger.debug(`Using Gemini model for OCR: ${model}`);
+
+      const response = await this.genAI.models.generateContent({
+        model: model,
+        contents: contents,
+        config: {
+          thinkingConfig: {
+            thinkingLevel: ThinkingLevel.HIGH,
+          },
+          systemInstruction: [
+            {
+              text:
+                customSystemPrompt ||
+                `### Role
 You are an expert Document Digitizer.
 
 ### Task
@@ -53,15 +66,15 @@ Convert the attached file to Markdown using your best judgment to reflect the or
 - **Non-Text**: Insert concise descriptions for visual elements (e.g., \`[Image: Logo]\`, \`[Signature]\`, \`[Stamp]\`, etc.).
 - **Tables**: Represent tabular data using standard Markdown syntax.
 - **Output**: Return ONLY the Markdown content.`,
-                        }
-                    ],
-                },
-            });
+            },
+          ],
+        },
+      });
 
-            return response.text || '';
-        } catch (error) {
-            logger.error(`Gemini Single File OCR failed: ${error}`);
-            throw error;
-        }
+      return response.text || '';
+    } catch (error) {
+      logger.error(`Gemini Single File OCR failed: ${error}`);
+      throw error;
     }
+  }
 }

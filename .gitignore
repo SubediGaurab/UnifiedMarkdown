@@ -39,3 +39,5 @@ temp/
 
 # npm package tarballs
 *.tgz
+
+.coderefactoragent

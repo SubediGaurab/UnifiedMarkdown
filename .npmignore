@@ -13,6 +13,7 @@ tsconfig.json
 *.spec.ts
 coverage/
 .nyc_output/
+.coderefactoragent/
 
 # Build and IDE configuration
 .eslintrc.json
