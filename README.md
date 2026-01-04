@@ -141,3 +141,32 @@ If a `.md` file already exists, it's automatically backed up with a timestamp:
 - PDF (`.pdf`)
 - Word (`.docx`)
 - PowerPoint (`.pptx`)
+
+## Alternative: Using Claude Code Skills
+
+If you use [Claude Code](https://claude.ai/claude-code), this repository includes built-in skills that let you convert files using natural language.
+
+### Usage
+
+Simply ask Claude to convert files:
+
+```
+Convert document.pdf to markdown
+```
+
+```
+Convert all files in ./docs/ to markdown
+```
+
+Claude will use the `convert-to-markdown` skill to process your files.
+
+### Available Skills
+
+- **convert-to-markdown**: Convert single files or directories to Markdown format
+- **open-prose**: OpenProse workflow orchestration (used internally by convert-to-markdown)
+
+### Note
+
+The skills use the same underlying conversion logic as the CLI tool. Ensure you have:
+- Run `umd setup` to configure your Gemini API key
+- LibreOffice installed (for PPTX conversion)
