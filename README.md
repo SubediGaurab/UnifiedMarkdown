@@ -164,9 +164,3 @@ Claude will use the `convert-to-markdown` skill to process your files.
 
 - **convert-to-markdown**: Convert single files or directories to Markdown format
 - **open-prose**: OpenProse workflow orchestration (used internally by convert-to-markdown)
-
-### Note
-
-The skills use the same underlying conversion logic as the CLI tool. Ensure you have:
-- Run `umd setup` to configure your Gemini API key
-- LibreOffice installed (for PPTX conversion)
