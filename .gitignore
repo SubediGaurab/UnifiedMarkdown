@@ -41,3 +41,6 @@ temp/
 *.tgz
 
 .coderefactoragent
+# Claude IDE
+.claude/
+nul
