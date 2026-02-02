@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import path from 'path';
-import { OCRServiceFactory } from '../services/OCR/OCRServiceFactory.js';
+import { OCRServiceFactory } from '../../core/services/OCR/OCRServiceFactory.js';
 
 export function registerConvertCommand(program: Command) {
   program

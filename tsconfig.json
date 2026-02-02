@@ -5,7 +5,7 @@
     "lib": ["ES2022"],
     "moduleResolution": "node",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -20,6 +20,6 @@
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*"],
+  "include": ["core/**/*", "cli/**/*", "orchestrator/**/*"],
   "exclude": ["node_modules", "dist"]
 }

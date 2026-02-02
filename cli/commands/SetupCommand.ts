@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import { input, confirm } from '@inquirer/prompts';
 import { GoogleGenAI } from '@google/genai';
-import { ConfigService } from '../services/ConfigService.js';
-import { logger } from '../utils/logger.js';
+import { ConfigService } from '../../core/services/ConfigService.js';
+import { logger } from '../../core/utils/logger.js';
 import ora from 'ora';
 
 export function registerSetupCommand(program: Command) {

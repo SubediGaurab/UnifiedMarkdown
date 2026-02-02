@@ -3,9 +3,9 @@
   "version": "0.3.0",
   "description": "AI-powered CLI tool to convert images, PDFs, DOCX, and PPTX to Markdown using Google Gemini",
   "type": "module",
-  "main": "dist/cli.js",
+  "main": "dist/cli/cli.js",
   "bin": {
-    "umd": "dist/cli.js"
+    "umd": "dist/cli/cli.js"
   },
   "files": [
     "dist",
@@ -13,12 +13,12 @@
   ],
   "scripts": {
     "build": "tsc",
-    "link": "npm run build && chmod +x dist/cli.js && npm link",
+    "link": "npm run build && chmod +x dist/cli/cli.js && npm link",
     "unlink": "npm unlink -g unified-markdown",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\"",
+    "lint": "eslint core/**/*.ts cli/**/*.ts orchestrator/**/*.ts",
+    "lint:fix": "eslint core/**/*.ts cli/**/*.ts orchestrator/**/*.ts --fix",
+    "format": "prettier --write \"core/**/*.ts\" \"cli/**/*.ts\" \"orchestrator/**/*.ts\"",
+    "format:check": "prettier --check \"core/**/*.ts\" \"cli/**/*.ts\" \"orchestrator/**/*.ts\"",
     "prepare": "npm run build",
     "prepack": "npm run build"
   },

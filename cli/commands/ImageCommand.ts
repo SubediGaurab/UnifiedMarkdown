@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import path from 'path';
-import { ImageOCRService } from '../services/OCR/ImageOCRService.js';
+import { ImageOCRService } from '../../core/services/OCR/ImageOCRService.js';
 
 export function registerImageCommand(program: Command) {
   program

@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
  */
 async function getVersion(): Promise<string> {
   try {
-    const packagePath = path.join(__dirname, '../package.json');
+    const packagePath = path.join(__dirname, '../../package.json');
     const packageJson = JSON.parse(await readFile(packagePath, 'utf-8'));
     return packageJson.version || '0.1.0';
   } catch {
@@ -23,6 +23,7 @@ async function getVersion(): Promise<string> {
 
 import { registerConvertCommand } from './commands/ConvertCommand.js';
 import { registerSetupCommand } from './commands/SetupCommand.js';
+import { registerOrchestrateCommand } from '../orchestrator/index.js';
 
 /**
  * Main CLI function
@@ -40,6 +41,7 @@ async function main() {
 
   registerSetupCommand(program);
   registerConvertCommand(program);
+  registerOrchestrateCommand(program);
 
   program.parse();
 }
