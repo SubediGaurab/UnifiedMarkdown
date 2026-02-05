@@ -30,14 +30,18 @@ export function createEventsRoutes(context: RouteContext): Router {
 
     // Event listener for server events
     const eventHandler = (event: ServerEvent) => {
-      const eventType = event.type;
-      const dataWithTimestamp =
+      // Include event type in data so it works with onmessage handler
+      // (Named SSE events require addEventListener which is more complex)
+      const dataWithMeta =
         typeof event.data === 'object' && event.data !== null
-          ? { ...(event.data as Record<string, unknown>), timestamp: event.timestamp.toISOString() }
-          : { data: event.data, timestamp: event.timestamp.toISOString() };
-      const eventData = JSON.stringify(dataWithTimestamp);
+          ? {
+              type: event.type,
+              ...(event.data as Record<string, unknown>),
+              timestamp: event.timestamp.toISOString()
+            }
+          : { type: event.type, data: event.data, timestamp: event.timestamp.toISOString() };
+      const eventData = JSON.stringify(dataWithMeta);
 
-      res.write(`event: ${eventType}\n`);
       res.write(`data: ${eventData}\n\n`);
     };
 
@@ -58,7 +62,12 @@ export function createEventsRoutes(context: RouteContext): Router {
 
     // Handle errors
     req.on('error', (err) => {
-      logger.error(`SSE error: ${err.message}`);
+      // "aborted" is normal - happens when client disconnects (tab close, refresh, etc.)
+      if (err.message === 'aborted') {
+        logger.debug('SSE client connection aborted');
+      } else {
+        logger.error(`SSE error: ${err.message}`);
+      }
       context.eventEmitter.off('server-event', eventHandler);
       clearInterval(heartbeatInterval);
     });

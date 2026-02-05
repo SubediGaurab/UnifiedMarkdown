@@ -13,6 +13,8 @@ interface ConvertRequest {
   files: string[];
   concurrency?: number;
   skipConverted?: boolean;
+  /** Use Claude Code with convert-to-markdown skill instead of standard UMD conversion */
+  useClaudeCode?: boolean;
 }
 
 /**
@@ -103,12 +105,14 @@ export function createConvertRoutes(context: RouteContext): Router {
       // Start conversion in background
       const concurrency = body.concurrency ?? 3;
       const skipConverted = body.skipConverted ?? true;
+      const useClaudeCode = body.useClaudeCode ?? false;
 
       // Don't await - let it run in background
       context.processManager
         .convertBatch(discoveredFiles, jobId, {
           concurrency,
           skipConverted,
+          useClaudeCode,
           onStart: (file) => {
             context.eventEmitter.emit('server-event', {
               type: 'conversion-progress',

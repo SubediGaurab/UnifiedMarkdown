@@ -6,6 +6,7 @@ import { logger } from '../../../core/utils/logger.js';
 import { FileDiscoveryService } from '../../services/FileDiscoveryService.js';
 import { ConversionStateService } from '../../services/ConversionStateService.js';
 import { ProcessManagerService } from '../../services/ProcessManagerService.js';
+import { SkillsService } from '../../services/SkillsService.js';
 import { ExclusionService } from '../services/ExclusionService.js';
 import { ScanCacheService } from '../services/ScanCacheService.js';
 import { EventEmitter } from 'events';
@@ -136,6 +137,22 @@ export class UIServerService {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
       });
+    });
+
+    // Skills status - check if Claude Code skills are available
+    this.app.get('/api/skills/status', (_req: Request, res: Response) => {
+      try {
+        const skillsInfo = SkillsService.getSkillsInfo();
+        res.json({
+          claudeCodeReady: skillsInfo.claudeCodeReady,
+          availableSkills: skillsInfo.installedSkills,
+          missingSkills: skillsInfo.missingSkills,
+          userSkillsPath: skillsInfo.userSkillsPath,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        res.status(500).json({ error: message });
+      }
     });
 
     // Serve static files for React frontend (when built)

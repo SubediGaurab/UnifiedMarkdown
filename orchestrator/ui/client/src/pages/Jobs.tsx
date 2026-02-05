@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { listJobs, getJobStatus, cancelJob, deleteJob, type BatchState, type ConversionRecord } from '../api/client';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { listJobs, getJobStatus, cancelJob, deleteJob, getJobLogsByPath, createEventSource, type BatchState, type ConversionRecord, type ServerEvent } from '../api/client';
 import { JobProgress } from '../components/ProgressBar';
 import LogViewer from '../components/LogViewer';
 
@@ -8,7 +8,21 @@ export default function Jobs() {
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<BatchState | null>(null);
   const [selectedFile, setSelectedFile] = useState<ConversionRecord | null>(null);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Refs to access current state in SSE callbacks
+  const selectedJobRef = useRef<BatchState | null>(null);
+  const selectedFileRef = useRef<ConversionRecord | null>(null);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    selectedJobRef.current = selectedJob;
+  }, [selectedJob]);
+
+  useEffect(() => {
+    selectedFileRef.current = selectedFile;
+  }, [selectedFile]);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -27,16 +41,67 @@ export default function Jobs() {
     }
   }, []);
 
+  // Refresh selected job details
+  const refreshSelectedJob = useCallback(async (jobId: string) => {
+    try {
+      const latest = await getJobStatus(jobId);
+      setSelectedJob(latest);
+
+      // Also refresh the selected file if it exists in this job
+      if (selectedFileRef.current) {
+        const updatedFile = latest.files.find(f => f.filePath === selectedFileRef.current?.filePath);
+        if (updatedFile) {
+          // Fetch full logs
+          try {
+            const fileWithLogs = await getJobLogsByPath(jobId, updatedFile.filePath);
+            setSelectedFile(fileWithLogs);
+          } catch {
+            setSelectedFile(updatedFile);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh job:', err);
+    }
+  }, []);
+
+  // SSE for real-time updates
+  useEffect(() => {
+    const eventSource = createEventSource((event: ServerEvent) => {
+      const data = event.data as Record<string, unknown>;
+
+      if (event.type === 'conversion-progress' || event.type === 'conversion-complete') {
+        // Refresh the jobs list
+        loadJobs();
+
+        // If we have a selected job that matches, refresh its details
+        const jobId = data.jobId as string;
+        if (selectedJobRef.current?.id === jobId) {
+          refreshSelectedJob(jobId);
+        }
+      }
+
+      if (event.type === 'file-log-update') {
+        // Update logs for the selected file if it matches
+        const filePath = data.filePath as string;
+        const jobId = data.jobId as string;
+
+        if (selectedJobRef.current?.id === jobId && selectedFileRef.current?.filePath === filePath) {
+          // Refresh the file logs
+          getJobLogsByPath(jobId, filePath)
+            .then(fileWithLogs => setSelectedFile(fileWithLogs))
+            .catch(err => console.error('Failed to refresh file logs:', err));
+        }
+      }
+    });
+
+    return () => eventSource.close();
+  }, [loadJobs, refreshSelectedJob]);
+
+  // Initial load
   useEffect(() => {
     loadJobs();
-    // Poll for updates every 5 seconds if there are running jobs
-    const interval = setInterval(() => {
-      if (jobs.some((j) => j.status === 'running')) {
-        loadJobs();
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [loadJobs, jobs]);
+  }, [loadJobs]);
 
   const handleSelectJob = async (job: BatchState) => {
     try {
@@ -72,6 +137,25 @@ export default function Jobs() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete job');
+    }
+  };
+
+  const handleSelectFile = async (file: ConversionRecord) => {
+    if (!selectedJob) return;
+
+    // Set the file immediately to show it's selected
+    setSelectedFile(file);
+    setLoadingLogs(true);
+
+    try {
+      // Fetch full logs for this file
+      const fileWithLogs = await getJobLogsByPath(selectedJob.id, file.filePath);
+      setSelectedFile(fileWithLogs);
+    } catch (err) {
+      // If fetching logs fails, keep the basic file info
+      console.error('Failed to fetch logs:', err);
+    } finally {
+      setLoadingLogs(false);
     }
   };
 
@@ -244,7 +328,7 @@ export default function Jobs() {
                   (selectedJob.files || []).map((file, index) => (
                     <div
                       key={index}
-                      onClick={() => setSelectedFile(file)}
+                      onClick={() => handleSelectFile(file)}
                       style={{
                         padding: '8px 12px',
                         borderBottom: '1px solid var(--gray-100)',
@@ -261,11 +345,6 @@ export default function Jobs() {
                           {file.status}
                         </span>
                       </div>
-                      {file.error && (
-                        <div className="text-sm" style={{ color: 'var(--error)', marginTop: 4 }}>
-                          {file.error}
-                        </div>
-                      )}
                     </div>
                   ))
                 )}
@@ -304,15 +383,23 @@ export default function Jobs() {
               className="mb-4"
               style={{
                 padding: '12px',
-                background: 'var(--error-light)',
+                background: 'var(--gray-50)',
                 borderRadius: 'var(--border-radius)',
+                border: '1px solid var(--error)',
                 color: 'var(--error)',
               }}
             >
               <strong>Error:</strong> {selectedFile.error}
             </div>
           )}
-          <LogViewer stdout={selectedFile.stdout} stderr={selectedFile.stderr} />
+          {loadingLogs ? (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <div className="spinner" style={{ width: 24, height: 24, margin: '0 auto' }} />
+              <p className="text-muted mt-2">Loading logs...</p>
+            </div>
+          ) : (
+            <LogViewer stdout={selectedFile.stdout} stderr={selectedFile.stderr} />
+          )}
         </div>
       )}
     </div>

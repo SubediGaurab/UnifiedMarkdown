@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { triggerScan, startConversion, type ScanApiResponse, type DiscoveredFile } from '../api/client';
+import { useState, useCallback, useEffect } from 'react';
+import { triggerScan, startConversion, getSkillsStatus, type ScanApiResponse, type DiscoveredFile, type SkillsStatus } from '../api/client';
 import FileTree from '../components/FileTree';
 import { QuickExcludeModal } from '../components/ExclusionManager';
 import { IndeterminateProgress } from '../components/ProgressBar';
@@ -18,6 +18,15 @@ export default function FileBrowser() {
   const [useCache, setUseCache] = useState(true);
   const [concurrency, setConcurrency] = useState(3);
   const [skipConverted, setSkipConverted] = useState(true);
+  const [useClaudeCode, setUseClaudeCode] = useState(false);
+  const [skillsStatus, setSkillsStatus] = useState<SkillsStatus | null>(null);
+
+  // Check skills status on mount
+  useEffect(() => {
+    getSkillsStatus()
+      .then(setSkillsStatus)
+      .catch(() => setSkillsStatus(null));
+  }, []);
 
   const handleScan = async () => {
     if (!rootPath.trim()) {
@@ -58,6 +67,7 @@ export default function FileBrowser() {
         files: Array.from(selectedFiles),
         concurrency,
         skipConverted,
+        useClaudeCode,
       });
       // Show success message
       alert(`Conversion started! Job ID: ${result.jobId}\n${result.totalFiles} files queued.`);
@@ -215,6 +225,31 @@ export default function FileBrowser() {
                     onChange={(e) => setSkipConverted(e.target.checked)}
                   />
                   <span className="text-sm">Skip already converted</span>
+                </label>
+
+                <label
+                  className="flex items-center gap-2"
+                  style={{
+                    cursor: skillsStatus?.claudeCodeReady ? 'pointer' : 'not-allowed',
+                    opacity: skillsStatus?.claudeCodeReady ? 1 : 0.5,
+                  }}
+                  title={
+                    skillsStatus?.claudeCodeReady
+                      ? "Use Claude Code with Opus model and convert-to-markdown skill for higher quality conversion"
+                      : skillsStatus?.missingSkills?.length
+                        ? `Missing skills: ${skillsStatus.missingSkills.join(', ')}. Ensure .claude/skills directory is present.`
+                        : "Claude Code skills not available"
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    checked={useClaudeCode}
+                    onChange={(e) => setUseClaudeCode(e.target.checked)}
+                    disabled={!skillsStatus?.claudeCodeReady}
+                  />
+                  <span className="text-sm" style={{ color: useClaudeCode ? 'var(--primary)' : 'inherit', fontWeight: useClaudeCode ? 600 : 400 }}>
+                    Use Claude Code
+                  </span>
                 </label>
 
                 <button

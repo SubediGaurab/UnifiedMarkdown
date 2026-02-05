@@ -9,10 +9,14 @@
   },
   "files": [
     "dist",
+    ".claude/skills",
+    "scripts/postinstall.js",
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:ui",
+    "build:core": "tsc",
+    "build:ui": "cd orchestrator/ui/client && npm run build",
     "link": "npm run build && chmod +x dist/cli/cli.js && npm link",
     "unlink": "npm unlink -g unified-markdown",
     "lint": "eslint core/**/*.ts cli/**/*.ts orchestrator/**/*.ts",
@@ -20,7 +24,9 @@
     "format": "prettier --write \"core/**/*.ts\" \"cli/**/*.ts\" \"orchestrator/**/*.ts\"",
     "format:check": "prettier --check \"core/**/*.ts\" \"cli/**/*.ts\" \"orchestrator/**/*.ts\"",
     "prepare": "npm run build",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "postinstall": "node scripts/postinstall.js",
+    "install-skills": "node scripts/postinstall.js"
   },
   "keywords": [
     "markdown",
@@ -59,6 +65,7 @@
     "adm-zip": "^0.5.16",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
+    "cross-spawn": "^7.0.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.0",
     "mammoth": "^1.11.0",
@@ -68,6 +75,7 @@
     "turndown-plugin-gfm": "^1.0.2"
   },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.2",
     "@types/turndown": "^5.0.6",

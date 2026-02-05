@@ -109,6 +109,18 @@ export async function checkHealth(): Promise<{ status: string; timestamp: string
   return fetchJson('/health');
 }
 
+// Skills status
+export interface SkillsStatus {
+  claudeCodeReady: boolean;
+  availableSkills: string[];
+  missingSkills: string[];
+  userSkillsPath: string;
+}
+
+export async function getSkillsStatus(): Promise<SkillsStatus> {
+  return fetchJson('/skills/status');
+}
+
 // Scan API response type (matches actual backend response)
 export interface ScanApiResponse {
   files: DiscoveredFile[];
@@ -144,6 +156,8 @@ export interface ConvertOptions {
   files: string[];
   concurrency?: number;
   skipConverted?: boolean;
+  /** Use Claude Code with convert-to-markdown skill instead of standard UMD conversion */
+  useClaudeCode?: boolean;
 }
 
 export async function startConversion(options: ConvertOptions): Promise<{ message: string; jobId: string; totalFiles: number }> {
@@ -188,22 +202,46 @@ export async function getJobStatus(jobId: string): Promise<BatchState> {
     status = stats.failed > 0 && stats.completed === 0 ? 'failed' : 'completed';
   }
 
+  // Map files
+  const files = (response.files || []).map((f): ConversionRecord => ({
+    filePath: f.path || '',
+    status: (f.status as ConversionRecord['status']) || 'pending',
+    startedAt: f.startedAt ? new Date(f.startedAt) : undefined,
+    completedAt: f.completedAt ? new Date(f.completedAt) : undefined,
+    error: f.error,
+    outputPath: f.outputPath,
+  }));
+
+  // Compute job completedAt from file completion times when job is done
+  let completedAt: Date | undefined;
+  if (status !== 'pending' && status !== 'running') {
+    // Job is finished (completed, failed, or cancelled)
+    const completedTimes = files
+      .map(f => f.completedAt?.getTime())
+      .filter((t): t is number => t !== undefined);
+    if (completedTimes.length > 0) {
+      completedAt = new Date(Math.max(...completedTimes));
+    } else if (files.length > 0) {
+      // Fallback: use the latest startedAt if no completedAt available
+      const startedTimes = files
+        .map(f => f.startedAt?.getTime())
+        .filter((t): t is number => t !== undefined);
+      if (startedTimes.length > 0) {
+        completedAt = new Date(Math.max(...startedTimes));
+      }
+    }
+  }
+
   return {
     id: response.jobId,
     rootPath: response.rootPath || '',
     startedAt: new Date(response.createdAt),
+    completedAt,
     totalFiles: stats.total,
     completedFiles: stats.completed,
     failedFiles: stats.failed,
     status,
-    files: (response.files || []).map((f): ConversionRecord => ({
-      filePath: f.path || '',
-      status: (f.status as ConversionRecord['status']) || 'pending',
-      startedAt: f.startedAt ? new Date(f.startedAt) : undefined,
-      completedAt: f.completedAt ? new Date(f.completedAt) : undefined,
-      error: f.error,
-      outputPath: f.outputPath,
-    })),
+    files,
   };
 }
 
@@ -291,7 +329,12 @@ export function createEventSource(onEvent: (event: ServerEvent) => void): EventS
   eventSource.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
-      onEvent(data);
+      // Event type is now included in the data payload
+      onEvent({
+        type: data.type,
+        data: data,
+        timestamp: data.timestamp,
+      });
     } catch (err) {
       console.error('Failed to parse SSE event:', err);
     }
