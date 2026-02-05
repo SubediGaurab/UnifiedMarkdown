@@ -1,11 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ExclusionManager from '../components/ExclusionManager';
 import DaemonStatus from '../components/DaemonStatus';
+import { getDefaultExclusions, type DefaultExclusionRule } from '../api/client';
 
 type SettingsTab = 'exclusions' | 'daemon' | 'general';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('exclusions');
+  const [defaultExclusions, setDefaultExclusions] = useState<DefaultExclusionRule[]>([]);
+  const [defaultsLoading, setDefaultsLoading] = useState(true);
+  const [defaultsError, setDefaultsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    getDefaultExclusions()
+      .then((defaults) => {
+        if (!mounted) return;
+        setDefaultExclusions(defaults);
+        setDefaultsError(null);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setDefaultsError(err instanceof Error ? err.message : 'Failed to load default exclusions');
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setDefaultsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'exclusions', label: 'Exclusions', icon: '🚫' },
@@ -60,7 +86,56 @@ export default function Settings() {
                   like <code>*.tmp</code> or <code>node_modules</code> to match multiple files.
                 </p>
               </div>
-              <ExclusionManager />
+              <div className="card" style={{ marginTop: 16 }}>
+                <div className="card-header">
+                  <h3>Custom Exclusions</h3>
+                </div>
+                <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
+                  These rules come from your configuration and can be edited or removed.
+                </p>
+                <ExclusionManager />
+              </div>
+              <div className="card" style={{ marginTop: 16 }}>
+                <div className="card-header">
+                  <h3>Default Exclusions</h3>
+                </div>
+                <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
+                  These are built-in exclusions that are always applied to scans and cannot be removed.
+                </p>
+                {defaultsLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="spinner" />
+                    <span>Loading defaults...</span>
+                  </div>
+                ) : defaultsError ? (
+                  <div className="card" style={{ background: 'var(--error-light)', marginBottom: 0 }}>
+                    <p style={{ color: 'var(--error)', margin: 0 }}>{defaultsError}</p>
+                  </div>
+                ) : (
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Pattern</th>
+                          <th>Type</th>
+                          <th>Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {defaultExclusions.map((rule) => (
+                          <tr key={`${rule.type}:${rule.pattern}`}>
+                            <td style={{ fontFamily: 'var(--font-mono)' }}>{rule.pattern}</td>
+                            <td>
+                              <span className="badge badge-info">{rule.type}</span>
+                            </td>
+                            <td>{rule.description || 'None'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -88,7 +163,7 @@ export default function Settings() {
 
               <div className="form-group">
                 <label className="form-label">Default Concurrency</label>
-                <select className="form-select" defaultValue="3" style={{ width: 200 }}>
+                <select className="form-select" defaultValue="10" style={{ width: 200 }}>
                   {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
                     <option key={n} value={n}>
                       {n} parallel conversions

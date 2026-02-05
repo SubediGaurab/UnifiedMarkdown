@@ -40,6 +40,8 @@ export interface ScanResult {
   directoriesScanned: number;
   /** Errors encountered during scan */
   errors: string[];
+  /** Excluded files/directories */
+  excluded: ExcludedItem[];
 }
 
 /**
@@ -54,9 +56,11 @@ export interface ScanOptions {
   maxDepth?: number;
   /** Directories to exclude (e.g., node_modules, .git) */
   excludeDirs?: string[];
+  /** Optional exclusion matcher for custom rules */
+  exclusionMatcher?: ExclusionMatcher;
 }
 
-const DEFAULT_EXCLUDE_DIRS = [
+export const DEFAULT_EXCLUDE_DIRS = [
   'node_modules',
   '.git',
   '.svn',
@@ -70,11 +74,59 @@ const DEFAULT_EXCLUDE_DIRS = [
   'System Volume Information',
 ];
 
+const FOUND_DIR_PATTERN = /^found\.\d+$/i;
+
+export type DefaultExclusionRule = {
+  type: 'directory' | 'pattern';
+  pattern: string;
+  description?: string;
+};
+
+export type ExclusionRuleInfo = {
+  source: 'default' | 'custom';
+  type: 'file' | 'directory' | 'pattern';
+  pattern: string;
+  scope?: string;
+  id?: string;
+};
+
+export type ExclusionMatch = {
+  rule: ExclusionRuleInfo;
+  reason: string;
+};
+
+export type ExcludedItem = ExclusionMatch & {
+  path: string;
+  type: 'file' | 'directory';
+};
+
+export type ExclusionMatcher = (
+  filePath: string,
+  type: 'file' | 'directory'
+) => ExclusionMatch | null;
+
+const DEFAULT_EXCLUSION_RULES: DefaultExclusionRule[] = [
+  ...DEFAULT_EXCLUDE_DIRS.map(
+    (pattern): DefaultExclusionRule => ({ type: 'directory', pattern })
+  ),
+  {
+    type: 'pattern',
+    pattern: 'found.*',
+    description: 'Windows recovered files directories (found.000, found.001, ...)',
+  },
+];
+
+export function getDefaultExclusionRules(): DefaultExclusionRule[] {
+  return DEFAULT_EXCLUSION_RULES.map((rule) => ({ ...rule }));
+}
+
 /**
  * Service for discovering files that can be converted to markdown
  */
 export class FileDiscoveryService {
-  private options: Required<ScanOptions>;
+  private options: Required<Omit<ScanOptions, 'exclusionMatcher'>> & {
+    exclusionMatcher?: ExclusionMatcher;
+  };
 
   constructor(options: ScanOptions = {}) {
     this.options = {
@@ -82,6 +134,7 @@ export class FileDiscoveryService {
       extensions: options.extensions ?? [...ALL_SUPPORTED_EXTENSIONS],
       maxDepth: options.maxDepth ?? Infinity,
       excludeDirs: options.excludeDirs ?? DEFAULT_EXCLUDE_DIRS,
+      exclusionMatcher: options.exclusionMatcher,
     };
   }
 
@@ -109,6 +162,7 @@ export class FileDiscoveryService {
       totalScanned: 0,
       directoriesScanned: 0,
       errors: [],
+      excluded: [],
     };
 
     await this.scanDirectory(absolutePath, 0, result);
@@ -158,8 +212,16 @@ export class FileDiscoveryService {
 
       try {
         if (entry.isDirectory()) {
-          // Skip excluded directories
-          if (this.options.excludeDirs.includes(entry.name)) {
+          const exclusionMatch = this.getDirectoryExclusionMatch(
+            entry.name,
+            fullPath
+          );
+          if (exclusionMatch) {
+            result.excluded.push({
+              path: fullPath,
+              type: 'directory',
+              ...exclusionMatch,
+            });
             continue;
           }
 
@@ -169,9 +231,21 @@ export class FileDiscoveryService {
         } else if (entry.isFile()) {
           result.totalScanned++;
           const discovered = this.processFile(fullPath);
-          if (discovered) {
-            result.files.push(discovered);
+          if (!discovered) {
+            continue;
           }
+
+          const exclusionMatch = this.getFileExclusionMatch(fullPath);
+          if (exclusionMatch) {
+            result.excluded.push({
+              path: fullPath,
+              type: 'file',
+              ...exclusionMatch,
+            });
+            continue;
+          }
+
+          result.files.push(discovered);
         }
       } catch (error) {
         const message = `Error processing ${fullPath}: ${error instanceof Error ? error.message : String(error)}`;
@@ -220,6 +294,56 @@ export class FileDiscoveryService {
       hasMarkdown,
       markdownPath,
     };
+  }
+
+  /**
+   * Check if a directory name should be excluded from scanning
+   */
+  private getDirectoryExclusionMatch(
+    dirName: string,
+    fullPath: string
+  ): ExclusionMatch | null {
+    const customMatch = this.options.exclusionMatcher?.(
+      fullPath,
+      'directory'
+    );
+    if (customMatch) {
+      return customMatch;
+    }
+
+    if (FOUND_DIR_PATTERN.test(dirName)) {
+      return {
+        rule: {
+          source: 'default',
+          type: 'pattern',
+          pattern: 'found.*',
+        },
+        reason:
+          'Built-in exclusion for Windows recovered files directories (found.000, found.001, ...)',
+      };
+    }
+
+    const lowerName = dirName.toLowerCase();
+    const matched = this.options.excludeDirs.find(
+      (excluded) => excluded.toLowerCase() === lowerName
+    );
+
+    if (matched) {
+      return {
+        rule: {
+          source: 'default',
+          type: 'directory',
+          pattern: matched,
+        },
+        reason: `Built-in exclusion for "${matched}" directories`,
+      };
+    }
+
+    return null;
+  }
+
+  private getFileExclusionMatch(filePath: string): ExclusionMatch | null {
+    return this.options.exclusionMatcher?.(filePath, 'file') ?? null;
   }
 
   /**

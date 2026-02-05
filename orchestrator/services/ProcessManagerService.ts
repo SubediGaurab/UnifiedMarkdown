@@ -30,7 +30,7 @@ export interface ConversionResult {
  * Options for batch conversion
  */
 export interface BatchConvertOptions {
-  /** Maximum concurrent conversions (default: 3) */
+  /** Maximum concurrent conversions (default: 10) */
   concurrency?: number;
   /** Callback when a file starts processing */
   onStart?: (file: DiscoveredFile) => void;
@@ -312,7 +312,7 @@ export class ProcessManagerService {
     options: BatchConvertOptions = {}
   ): Promise<ConversionResult[]> {
     const {
-      concurrency = 3,
+      concurrency = 10,
       onStart,
       onComplete,
       onProgress,

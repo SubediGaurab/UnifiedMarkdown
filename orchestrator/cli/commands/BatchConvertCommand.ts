@@ -22,7 +22,7 @@ export function registerBatchConvertCommand(program: Command): void {
   program
     .command('convert <directory>')
     .description('Convert all pending files in a directory to markdown')
-    .option('-c, --concurrency <num>', 'Number of concurrent conversions', (val) => parseInt(val, 10), 3)
+    .option('-c, --concurrency <num>', 'Number of concurrent conversions', (val) => parseInt(val, 10), 10)
     .option('--include-converted', 'Re-convert files that already have markdown')
     .option('-r, --recursive', 'Scan recursively (default: true)', true)
     .option('--no-recursive', 'Do not scan recursively')

@@ -8,7 +8,6 @@ export interface ScanOptions {
   recursive?: boolean;
   maxDepth?: number | null;
   extensions?: string[];
-  useCache?: boolean;
   excludeDirs?: string[];
 }
 
@@ -80,6 +79,12 @@ export interface ExclusionRule {
   createdAt: string;
 }
 
+export interface DefaultExclusionRule {
+  pattern: string;
+  type: 'directory' | 'pattern';
+  description?: string;
+}
+
 export interface ServerEvent {
   type: 'scan-start' | 'scan-progress' | 'scan-complete' | 'conversion-start' | 'conversion-progress' | 'conversion-complete' | 'file-log-update' | 'error';
   data: unknown;
@@ -130,8 +135,22 @@ export interface ScanApiResponse {
   directoriesScanned: number;
   errors: string[];
   exclusionsApplied: number;
+  excluded: ExcludedItem[];
   fromCache: boolean;
   cachedAt?: string;
+}
+
+export interface ExcludedItem {
+  path: string;
+  type: 'file' | 'directory';
+  reason: string;
+  rule: {
+    source: 'default' | 'custom';
+    type: 'file' | 'directory' | 'pattern';
+    pattern: string;
+    scope?: string;
+    id?: string;
+  };
 }
 
 export async function triggerScan(options: ScanOptions): Promise<ScanApiResponse> {
@@ -320,6 +339,11 @@ export async function importExclusions(rules: ExclusionRule[]): Promise<{ import
     method: 'POST',
     body: JSON.stringify({ rules }),
   });
+}
+
+export async function getDefaultExclusions(): Promise<DefaultExclusionRule[]> {
+  const response = await fetchJson<{ defaults: DefaultExclusionRule[]; total: number }>('/exclusions/defaults');
+  return response.defaults || [];
 }
 
 // SSE Hooks

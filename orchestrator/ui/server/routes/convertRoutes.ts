@@ -103,7 +103,7 @@ export function createConvertRoutes(context: RouteContext): Router {
       });
 
       // Start conversion in background
-      const concurrency = body.concurrency ?? 3;
+      const concurrency = body.concurrency ?? 10;
       const skipConverted = body.skipConverted ?? true;
       const useClaudeCode = body.useClaudeCode ?? false;
 

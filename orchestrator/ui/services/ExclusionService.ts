@@ -105,6 +105,13 @@ export class ExclusionService {
    * Check if a file path should be excluded
    */
   isExcluded(filePath: string, rootPath?: string): boolean {
+    return this.getMatchingRule(filePath, rootPath) !== null;
+  }
+
+  /**
+   * Get the first matching exclusion rule (if any)
+   */
+  getMatchingRule(filePath: string, rootPath?: string): ExclusionRule | null {
     // Normalize to forward slashes for consistent matching
     const normalizedPath = filePath.replace(/\\/g, '/');
     const rules = rootPath
@@ -113,11 +120,11 @@ export class ExclusionService {
 
     for (const rule of rules) {
       if (this.matchesRule(normalizedPath, rule)) {
-        return true;
+        return rule;
       }
     }
 
-    return false;
+    return null;
   }
 
   /**

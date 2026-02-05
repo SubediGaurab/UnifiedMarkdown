@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { RouteContext } from '../UIServerService.js';
 import { ExclusionRule } from '../../../../core/interfaces/IConfig.js';
+import { getDefaultExclusionRules } from '../../../services/FileDiscoveryService.js';
 import { logger } from '../../../../core/utils/logger.js';
 
 /**
@@ -57,6 +58,25 @@ export function createExclusionRoutes(context: RouteContext): Router {
       const message =
         error instanceof Error ? error.message : 'Unknown error occurred';
       logger.error(`Failed to get exclusions: ${message}`);
+      return res.status(500).json({ error: message });
+    }
+  });
+
+  /**
+   * GET /api/exclusions/defaults
+   * Get built-in exclusion rules
+   */
+  router.get('/defaults', (_req: Request, res: Response) => {
+    try {
+      const defaults = getDefaultExclusionRules();
+      return res.json({
+        defaults,
+        total: defaults.length,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+      logger.error(`Failed to get default exclusions: ${message}`);
       return res.status(500).json({ error: message });
     }
   });

@@ -15,8 +15,7 @@ export default function FileBrowser() {
 
   // Scan options
   const [recursive, setRecursive] = useState(true);
-  const [useCache, setUseCache] = useState(true);
-  const [concurrency, setConcurrency] = useState(3);
+  const [concurrency, setConcurrency] = useState(10);
   const [skipConverted, setSkipConverted] = useState(true);
   const [useClaudeCode, setUseClaudeCode] = useState(false);
   const [skillsStatus, setSkillsStatus] = useState<SkillsStatus | null>(null);
@@ -40,7 +39,6 @@ export default function FileBrowser() {
       const result = await triggerScan({
         rootPath: rootPath.trim(),
         recursive,
-        useCache,
       });
       setScanResult(result);
       // Auto-select pending files
@@ -155,14 +153,6 @@ export default function FileBrowser() {
             />
             <span>Recursive</span>
           </label>
-          <label className="flex items-center gap-2" style={{ cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={useCache}
-              onChange={(e) => setUseCache(e.target.checked)}
-            />
-            <span>Use Cache</span>
-          </label>
         </div>
       </div>
 
@@ -197,6 +187,12 @@ export default function FileBrowser() {
                   <span className="text-sm text-muted">Converted</span>
                   <div style={{ fontWeight: 600, fontSize: 18, color: 'var(--success)' }}>
                     {scanResult.converted?.length || 0}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-sm text-muted">Excluded</span>
+                  <div style={{ fontWeight: 600, fontSize: 18, color: 'var(--gray-600)' }}>
+                    {scanResult.excluded?.length || 0}
                   </div>
                 </div>
               </div>
@@ -308,6 +304,56 @@ export default function FileBrowser() {
               onExclude={handleExclude}
             />
           </div>
+
+          {/* Excluded Items */}
+          {scanResult.excluded && scanResult.excluded.length > 0 && (
+            <details className="accordion">
+              <summary className="accordion-summary">
+                <div className="flex items-center gap-2">
+                  <h3 style={{ margin: 0 }}>Excluded Items</h3>
+                  <span className="badge badge-pending">{scanResult.excluded.length}</span>
+                </div>
+                <span className="text-sm text-muted">
+                  See what was skipped and why
+                </span>
+              </summary>
+              <div className="accordion-body">
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Path</th>
+                        <th>Type</th>
+                        <th>Reason</th>
+                        <th>Rule</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scanResult.excluded.map((item) => (
+                        <tr key={`${item.type}:${item.path}`}>
+                          <td style={{ fontFamily: 'var(--font-mono)' }}>{item.path}</td>
+                          <td>
+                            <span className="badge badge-info">{item.type}</span>
+                          </td>
+                          <td>{item.reason}</td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <span className="badge badge-info">{item.rule.type}</span>
+                              <span className="text-sm">{item.rule.pattern}</span>
+                              <span className="badge badge-pending">{item.rule.source}</span>
+                              {item.rule.scope && item.rule.scope !== 'global' && (
+                                <span className="badge badge-pending">{item.rule.scope}</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+          )}
 
           {/* Errors */}
           {scanResult.errors && scanResult.errors.length > 0 && (

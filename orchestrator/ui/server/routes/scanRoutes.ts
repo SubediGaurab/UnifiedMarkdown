@@ -12,7 +12,6 @@ interface ScanRequest {
   recursive?: boolean;
   maxDepth?: number;
   extensions?: string[];
-  useCache?: boolean;
   excludeDirs?: string[];
 }
 
@@ -35,20 +34,7 @@ export function createScanRoutes(context: RouteContext): Router {
       }
 
       const rootPath = path.resolve(body.rootPath);
-      const useCache = body.useCache !== false; // Default to true
-
-      // Check cache first
-      if (useCache) {
-        const cached = context.scanCache.get(rootPath);
-        if (cached) {
-          logger.info(`Using cached scan result for: ${rootPath}`);
-          return res.json({
-            ...cached.result,
-            fromCache: true,
-            cachedAt: cached.scannedAt.toISOString(),
-          });
-        }
-      }
+      // Always perform a fresh scan (cache is only used for status/history)
 
       // Emit scan start event
       context.eventEmitter.emit('server-event', {
@@ -63,6 +49,31 @@ export function createScanRoutes(context: RouteContext): Router {
         maxDepth: body.maxDepth,
         extensions: body.extensions,
         excludeDirs: body.excludeDirs,
+        exclusionMatcher: (filePath, _type) => {
+          const matchedRule = context.exclusionService.getMatchingRule(
+            filePath,
+            rootPath
+          );
+          if (!matchedRule) {
+            return null;
+          }
+
+          const scopeSuffix =
+            matchedRule.scope && matchedRule.scope !== 'global'
+              ? ` (scope: ${matchedRule.scope})`
+              : '';
+
+          return {
+            rule: {
+              source: 'custom',
+              type: matchedRule.type,
+              pattern: matchedRule.pattern,
+              scope: matchedRule.scope,
+              id: matchedRule.id,
+            },
+            reason: `Matched custom ${matchedRule.type} rule: ${matchedRule.pattern}${scopeSuffix}`,
+          };
+        },
       };
 
       // Create a new FileDiscoveryService with the options

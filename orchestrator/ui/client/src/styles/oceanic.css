@@ -551,6 +551,45 @@ tr:hover td {
   background: var(--gray-50);
 }
 
+/* Accordion */
+.accordion {
+  background: var(--white);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 20px;
+  border: 1px solid var(--gray-200);
+}
+
+.accordion-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.accordion-summary::-webkit-details-marker {
+  display: none;
+}
+
+.accordion-summary::after {
+  content: '▾';
+  color: var(--gray-400);
+  font-size: 16px;
+  transition: transform 0.2s ease;
+}
+
+.accordion[open] .accordion-summary::after {
+  transform: rotate(180deg);
+}
+
+.accordion-body {
+  padding: 0 20px 16px 20px;
+  border-top: 1px solid var(--gray-200);
+}
+
 /* Status Badges */
 .badge {
   display: inline-flex;
