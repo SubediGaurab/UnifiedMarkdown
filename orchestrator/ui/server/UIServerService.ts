@@ -1,6 +1,7 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import * as http from 'http';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { UIConfig } from '../../../core/interfaces/IConfig.js';
 import { logger } from '../../../core/utils/logger.js';
 import { FileDiscoveryService } from '../../services/FileDiscoveryService.js';
@@ -156,8 +157,12 @@ export class UIServerService {
     });
 
     // Serve static files for React frontend (when built)
+    // Resolve from this file's location (dist/orchestrator/ui/server/) to project root
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const projectRoot = path.join(__dirname, '..', '..', '..', '..');
     const clientDistPath = path.join(
-      process.cwd(),
+      projectRoot,
       'orchestrator',
       'ui',
       'client',

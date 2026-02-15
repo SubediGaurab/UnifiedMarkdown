@@ -300,7 +300,7 @@ export default function Jobs() {
                 }}
               >
                 <span className="text-muted">ID:</span>
-                <span style={{ fontFamily: 'var(--font-mono)' }}>{selectedJob.id}</span>
+                <span className="truncate" style={{ fontFamily: 'var(--font-mono)' }}>{selectedJob.id}</span>
                 <span className="text-muted">Path:</span>
                 <span className="truncate">{selectedJob.rootPath}</span>
                 <span className="text-muted">Started:</span>
@@ -337,8 +337,8 @@ export default function Jobs() {
                           selectedFile?.filePath === file.filePath ? 'var(--gray-50)' : 'transparent',
                       }}
                     >
-                      <div className="flex justify-between items-center">
-                        <span className="truncate text-sm" style={{ flex: 1 }}>
+                      <div className="flex justify-between items-center" style={{ minWidth: 0 }}>
+                        <span className="truncate text-sm" style={{ flex: 1, minWidth: 0 }}>
                           {file.filePath?.split(/[/\\]/).pop() || 'Unknown file'}
                         </span>
                         <span className={`badge badge-sm ${getStatusBadge(file.status)}`}>
@@ -367,7 +367,8 @@ export default function Jobs() {
             </button>
           </div>
           <div
-            className="mb-2"
+            className="truncate mb-2"
+            title={selectedFile.filePath}
             style={{
               padding: '8px 12px',
               background: 'var(--gray-50)',
