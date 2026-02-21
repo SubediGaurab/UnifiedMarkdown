@@ -17,6 +17,7 @@ import { createScanRoutes } from './routes/scanRoutes.js';
 import { createConvertRoutes } from './routes/convertRoutes.js';
 import { createExclusionRoutes } from './routes/exclusionRoutes.js';
 import { createEventsRoutes } from './routes/eventsRoutes.js';
+import { createBrowseRoutes } from './routes/browseRoutes.js';
 
 /**
  * Event types that can be emitted by the server
@@ -130,6 +131,7 @@ export class UIServerService {
     this.app.use('/api/convert', createConvertRoutes(this.context));
     this.app.use('/api/exclusions', createExclusionRoutes(this.context));
     this.app.use('/api/events', createEventsRoutes(this.context));
+    this.app.use('/api/browse', createBrowseRoutes());
 
     // Health check
     this.app.get('/api/health', (_req: Request, res: Response) => {

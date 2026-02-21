@@ -396,6 +396,14 @@ export function useServerEvents() {
   return { events, connected, clearEvents };
 }
 
+// Browse for directory using native OS dialog
+export async function browseDirectory(): Promise<string | null> {
+  const res = await fetch(`${API_BASE}/browse`);
+  if (!res.ok) throw new Error('Browse request failed');
+  const data = await res.json();
+  return data.cancelled ? null : data.path;
+}
+
 // Hook for specific event types
 export function useEventListener(
   eventType: ServerEvent['type'],

@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import { triggerScan, startConversion, getSkillsStatus, type ScanApiResponse, type DiscoveredFile, type SkillsStatus } from '../api/client';
+import { triggerScan, startConversion, getSkillsStatus, browseDirectory, type ScanApiResponse, type DiscoveredFile, type SkillsStatus } from '../api/client';
 import FileTree from '../components/FileTree';
 import { QuickExcludeModal } from '../components/ExclusionManager';
 import { IndeterminateProgress } from '../components/ProgressBar';
 
 export default function FileBrowser() {
   const [rootPath, setRootPath] = useState('');
+  const [browsing, setBrowsing] = useState(false);
   const [scanResult, setScanResult] = useState<ScanApiResponse | null>(null);
   const [scanning, setScanning] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -26,6 +27,19 @@ export default function FileBrowser() {
       .then(setSkillsStatus)
       .catch(() => setSkillsStatus(null));
   }, []);
+
+  const handleBrowse = async () => {
+    try {
+      setBrowsing(true);
+      setError(null);
+      const selected = await browseDirectory();
+      if (selected) setRootPath(selected);
+    } catch {
+      setError('Could not open directory picker');
+    } finally {
+      setBrowsing(false);
+    }
+  };
 
   const handleScan = async () => {
     if (!rootPath.trim()) {
@@ -128,6 +142,18 @@ export default function FileBrowser() {
             onKeyDown={(e) => e.key === 'Enter' && handleScan()}
             style={{ flex: 1 }}
           />
+          <button
+            className="btn btn-secondary"
+            onClick={handleBrowse}
+            disabled={browsing || scanning}
+            title="Open OS folder picker"
+          >
+            {browsing ? (
+              <div className="spinner" style={{ width: 16, height: 16 }} />
+            ) : (
+              '📂 Browse'
+            )}
+          </button>
           <button
             className="btn btn-primary"
             onClick={handleScan}
