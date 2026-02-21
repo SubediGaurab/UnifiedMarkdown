@@ -68,7 +68,7 @@ export function registerSetupCommand(program: Command) {
 
           // Make a minimal test request to validate the key
           await genAI.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3.1-pro-preview',
             contents: [{ text: 'test' }],
           });
 

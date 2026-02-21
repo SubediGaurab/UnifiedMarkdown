@@ -218,10 +218,10 @@ export default function Settings() {
 
               <div className="form-group">
                 <label className="form-label">OCR Model</label>
-                <select className="form-select" defaultValue="gemini-2.0-flash" style={{ width: '100%' }}>
-                  <option value="gemini-2.0-flash">gemini-2.0-flash (Default - Fast)</option>
-                  <option value="gemini-1.5-pro">gemini-1.5-pro (Higher Quality)</option>
-                  <option value="gemini-1.5-flash">gemini-1.5-flash (Legacy)</option>
+                <select className="form-select" defaultValue="gemini-3-flash-preview" style={{ width: '100%' }}>
+                  <option value="gemini-3-flash-preview">gemini-3-flash-preview (Default - Fast)</option>
+                  <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (Higher Quality)</option>
+                  <option value="gemini-2.5-flash">gemini-2.5-flash (Legacy)</option>
                 </select>
                 <p className="text-sm text-muted mt-2">
                   Model used for extracting text from images and documents.
