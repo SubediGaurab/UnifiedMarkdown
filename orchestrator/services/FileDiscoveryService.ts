@@ -76,6 +76,7 @@ export const DEFAULT_EXCLUDE_DIRS = [
 ];
 
 const FOUND_DIR_PATTERN = /^found\.\d+$/i;
+const UMD_IGNORE_FILENAME = '.umdignore';
 
 export type DefaultExclusionRule = {
   type: 'directory' | 'pattern';
@@ -84,7 +85,7 @@ export type DefaultExclusionRule = {
 };
 
 export type ExclusionRuleInfo = {
-  source: 'default' | 'custom';
+  source: 'default' | 'custom' | 'umdignore';
   type: 'file' | 'directory' | 'pattern';
   pattern: string;
   scope?: string;
@@ -106,6 +107,18 @@ export type ExclusionMatcher = (
   type: 'file' | 'directory'
 ) => ExclusionMatch | null;
 
+type UmdIgnoreRule = {
+  baseDir: string;
+  sourceFile: string;
+  sourceLine: number;
+  pattern: string;
+  displayPattern: string;
+  hasSlash: boolean;
+  directoryOnly: boolean;
+  negated: boolean;
+  anchored: boolean;
+};
+
 const DEFAULT_EXCLUSION_RULES: DefaultExclusionRule[] = [
   ...DEFAULT_EXCLUDE_DIRS.map(
     (pattern): DefaultExclusionRule => ({ type: 'directory', pattern })
@@ -113,7 +126,8 @@ const DEFAULT_EXCLUSION_RULES: DefaultExclusionRule[] = [
   {
     type: 'pattern',
     pattern: 'found.*',
-    description: 'Windows recovered files directories (found.000, found.001, ...)',
+    description:
+      'Windows recovered files directories (found.000, found.001, ...)',
   },
 ];
 
@@ -166,7 +180,7 @@ export class FileDiscoveryService {
       excluded: [],
     };
 
-    await this.scanDirectory(absolutePath, 0, result);
+    await this.scanDirectory(absolutePath, 0, result, []);
 
     // Categorize files
     for (const file of result.files) {
@@ -190,7 +204,8 @@ export class FileDiscoveryService {
   private async scanDirectory(
     dirPath: string,
     depth: number,
-    result: ScanResult
+    result: ScanResult,
+    activeIgnoreRules: UmdIgnoreRule[]
   ): Promise<void> {
     if (depth > this.options.maxDepth) {
       return;
@@ -208,6 +223,9 @@ export class FileDiscoveryService {
       return;
     }
 
+    const localIgnoreRules = this.loadUmdIgnoreRules(dirPath, result);
+    const mergedIgnoreRules = [...activeIgnoreRules, ...localIgnoreRules];
+
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
 
@@ -215,7 +233,8 @@ export class FileDiscoveryService {
         if (entry.isDirectory()) {
           const exclusionMatch = this.getDirectoryExclusionMatch(
             entry.name,
-            fullPath
+            fullPath,
+            mergedIgnoreRules
           );
           if (exclusionMatch) {
             result.excluded.push({
@@ -227,16 +246,38 @@ export class FileDiscoveryService {
           }
 
           if (this.options.recursive) {
-            await this.scanDirectory(fullPath, depth + 1, result);
+            await this.scanDirectory(
+              fullPath,
+              depth + 1,
+              result,
+              mergedIgnoreRules
+            );
           }
         } else if (entry.isFile()) {
+          if (entry.name === UMD_IGNORE_FILENAME) {
+            result.excluded.push({
+              path: fullPath,
+              type: 'file',
+              rule: {
+                source: 'default',
+                type: 'file',
+                pattern: UMD_IGNORE_FILENAME,
+              },
+              reason: `Built-in exclusion for "${UMD_IGNORE_FILENAME}" control files`,
+            });
+            continue;
+          }
+
           result.totalScanned++;
           const discovered = this.processFile(fullPath);
           if (!discovered) {
             continue;
           }
 
-          const exclusionMatch = this.getFileExclusionMatch(fullPath);
+          const exclusionMatch = this.getFileExclusionMatch(
+            fullPath,
+            mergedIgnoreRules
+          );
           if (exclusionMatch) {
             result.excluded.push({
               path: fullPath,
@@ -261,7 +302,7 @@ export class FileDiscoveryService {
    */
   private processFile(filePath: string): DiscoveredFile | null {
     const fileName = path.basename(filePath);
-    
+
     // Skip temporary Office files (start with ~$)
     if (fileName.startsWith('~$')) {
       return null;
@@ -302,14 +343,21 @@ export class FileDiscoveryService {
    */
   private getDirectoryExclusionMatch(
     dirName: string,
-    fullPath: string
+    fullPath: string,
+    activeIgnoreRules: UmdIgnoreRule[]
   ): ExclusionMatch | null {
-    const customMatch = this.options.exclusionMatcher?.(
-      fullPath,
-      'directory'
-    );
+    const customMatch = this.options.exclusionMatcher?.(fullPath, 'directory');
     if (customMatch) {
       return customMatch;
+    }
+
+    const umdIgnoreMatch = this.getUmdIgnoreExclusionMatch(
+      fullPath,
+      'directory',
+      activeIgnoreRules
+    );
+    if (umdIgnoreMatch) {
+      return umdIgnoreMatch;
     }
 
     if (FOUND_DIR_PATTERN.test(dirName)) {
@@ -343,8 +391,210 @@ export class FileDiscoveryService {
     return null;
   }
 
-  private getFileExclusionMatch(filePath: string): ExclusionMatch | null {
-    return this.options.exclusionMatcher?.(filePath, 'file') ?? null;
+  private getFileExclusionMatch(
+    filePath: string,
+    activeIgnoreRules: UmdIgnoreRule[]
+  ): ExclusionMatch | null {
+    const customMatch = this.options.exclusionMatcher?.(filePath, 'file');
+    if (customMatch) {
+      return customMatch;
+    }
+
+    return this.getUmdIgnoreExclusionMatch(filePath, 'file', activeIgnoreRules);
+  }
+
+  private loadUmdIgnoreRules(
+    dirPath: string,
+    result: ScanResult
+  ): UmdIgnoreRule[] {
+    const ignorePath = path.join(dirPath, UMD_IGNORE_FILENAME);
+    if (!fs.existsSync(ignorePath)) {
+      return [];
+    }
+
+    let content: string;
+    try {
+      content = fs.readFileSync(ignorePath, 'utf-8');
+    } catch (error) {
+      const message = `Failed to read ${ignorePath}: ${error instanceof Error ? error.message : String(error)}`;
+      result.errors.push(message);
+      logger.error(message);
+      return [];
+    }
+
+    const rules: UmdIgnoreRule[] = [];
+    const lines = content.split(/\r?\n/u);
+
+    for (let index = 0; index < lines.length; index++) {
+      const parsedRule = this.parseUmdIgnoreRule(
+        lines[index],
+        dirPath,
+        ignorePath,
+        index + 1
+      );
+      if (parsedRule) {
+        rules.push(parsedRule);
+      }
+    }
+
+    return rules;
+  }
+
+  private parseUmdIgnoreRule(
+    line: string,
+    baseDir: string,
+    sourceFile: string,
+    sourceLine: number
+  ): UmdIgnoreRule | null {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith('#')) {
+      return null;
+    }
+
+    let ruleBody = trimmedLine.replace(/\s+#.*$/u, '').trim();
+    if (!ruleBody) {
+      return null;
+    }
+
+    let negated = false;
+    if (ruleBody.startsWith('\\#') || ruleBody.startsWith('\\!')) {
+      ruleBody = ruleBody.slice(1);
+    } else if (ruleBody.startsWith('!')) {
+      negated = true;
+      ruleBody = ruleBody.slice(1).trim();
+    }
+
+    if (!ruleBody) {
+      return null;
+    }
+
+    let directoryOnly = false;
+    if (ruleBody.endsWith('/')) {
+      directoryOnly = true;
+      ruleBody = ruleBody.slice(0, -1);
+    }
+
+    let anchored = false;
+    if (ruleBody.startsWith('/')) {
+      anchored = true;
+      ruleBody = ruleBody.slice(1);
+    }
+
+    if (!ruleBody) {
+      return null;
+    }
+
+    return {
+      baseDir,
+      sourceFile,
+      sourceLine,
+      pattern: ruleBody,
+      displayPattern: `${negated ? '!' : ''}${anchored ? '/' : ''}${ruleBody}${directoryOnly ? '/' : ''}`,
+      hasSlash: ruleBody.includes('/'),
+      directoryOnly,
+      negated,
+      anchored,
+    };
+  }
+
+  private getUmdIgnoreExclusionMatch(
+    targetPath: string,
+    targetType: 'file' | 'directory',
+    activeIgnoreRules: UmdIgnoreRule[]
+  ): ExclusionMatch | null {
+    let lastMatchedRule: UmdIgnoreRule | null = null;
+    let isIgnored = false;
+
+    for (const rule of activeIgnoreRules) {
+      if (!this.matchesUmdIgnoreRule(targetPath, targetType, rule)) {
+        continue;
+      }
+
+      lastMatchedRule = rule;
+      isIgnored = !rule.negated;
+    }
+
+    if (!lastMatchedRule || !isIgnored) {
+      return null;
+    }
+
+    return {
+      rule: {
+        source: 'umdignore',
+        type: lastMatchedRule.directoryOnly ? 'directory' : 'pattern',
+        pattern: lastMatchedRule.displayPattern,
+        scope: lastMatchedRule.sourceFile,
+      },
+      reason: `Matched ${UMD_IGNORE_FILENAME} rule "${lastMatchedRule.displayPattern}" in ${lastMatchedRule.sourceFile}:${lastMatchedRule.sourceLine}`,
+    };
+  }
+
+  private matchesUmdIgnoreRule(
+    targetPath: string,
+    targetType: 'file' | 'directory',
+    rule: UmdIgnoreRule
+  ): boolean {
+    if (rule.directoryOnly && targetType !== 'directory') {
+      return false;
+    }
+
+    const relativePath = this.relativePathWithinBase(targetPath, rule.baseDir);
+    if (!relativePath) {
+      return false;
+    }
+
+    if (rule.anchored) {
+      return this.matchesUmdIgnorePattern(relativePath, rule.pattern);
+    }
+
+    if (!rule.hasSlash) {
+      const baseName = path.posix.basename(relativePath);
+      return this.matchesUmdIgnorePattern(baseName, rule.pattern);
+    }
+
+    return this.matchesUmdIgnorePattern(relativePath, rule.pattern);
+  }
+
+  private relativePathWithinBase(
+    targetPath: string,
+    baseDir: string
+  ): string | null {
+    const relative = path.relative(baseDir, targetPath);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+      return null;
+    }
+
+    return relative.replace(/\\/gu, '/');
+  }
+
+  private matchesUmdIgnorePattern(value: string, pattern: string): boolean {
+    const globSentinel = '<<<GLOBSTAR>>>';
+    let regexPattern = '';
+
+    for (const char of pattern) {
+      if (char === '*' || char === '?') {
+        regexPattern += char;
+        continue;
+      }
+
+      if (/[|\\{}()[\]^$+?.]/u.test(char)) {
+        regexPattern += `\\${char}`;
+      } else {
+        regexPattern += char;
+      }
+    }
+
+    regexPattern = regexPattern.replace(/\*\*/gu, globSentinel);
+    regexPattern = regexPattern.replace(/\*/gu, '[^/]*');
+    regexPattern = regexPattern.replace(/\?/gu, '[^/]');
+    regexPattern = regexPattern.replace(new RegExp(globSentinel, 'gu'), '.*');
+
+    try {
+      const regex = new RegExp(`^${regexPattern}$`, 'i');
+      return regex.test(value);
+    } catch {
+      return false;
+    }
   }
 
   /**

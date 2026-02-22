@@ -8,6 +8,7 @@ AI-powered CLI tool to convert images, PDFs, and Word documents to Markdown usin
 - Convert PDF documents to Markdown
 - Convert DOCX files to Markdown with embedded image captions and chart descriptions
 - Batch process entire directories
+- Directory-level exclusions via `.umdignore` files (gitignore-style patterns)
 - Powered by Google Gemini AI for accurate text extraction
 - Automatic backup of existing `.md` files
 - Easy setup with interactive configuration
@@ -121,6 +122,27 @@ Convert all supported files in a directory:
 
 ```bash
 umd convert /path/to/directory
+```
+
+### Directory-level Exclusions with `.umdignore`
+
+You can add a `.umdignore` file in any directory. During scanning:
+- `.umdignore` itself is always ignored
+- Rules from parent and child `.umdignore` files are applied hierarchically
+- Patterns are gitignore-like (`*`, `?`, `**`, `/`, trailing `/` for directories, `!` negation)
+- Comment lines starting with `#` are ignored by the app (for human notes)
+
+Example `.umdignore`:
+
+```text
+# Generated exports (can be recreated)
+exports/
+
+# Temporary files
+*.tmp
+
+# Keep this specific temp file
+!important.tmp
 ```
 
 ### Output

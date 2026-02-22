@@ -145,7 +145,7 @@ export interface ExcludedItem {
   type: 'file' | 'directory';
   reason: string;
   rule: {
-    source: 'default' | 'custom';
+    source: 'default' | 'custom' | 'umdignore';
     type: 'file' | 'directory' | 'pattern';
     pattern: string;
     scope?: string;

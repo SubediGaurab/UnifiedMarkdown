@@ -246,31 +246,35 @@ export class ConversionStateService {
         const parsed = JSON.parse(data);
 
         for (const [jobId, batchData] of Object.entries(parsed)) {
-          const batch = batchData as any;
+          const batch = batchData as Record<string, unknown>;
           const records = new Map<string, ConversionRecord>();
 
           for (const [filePath, recordData] of Object.entries(
-            batch.records || {}
+            (batch.records as Record<string, unknown>) || {}
           )) {
-            const r = recordData as any;
+            const r = recordData as Record<string, unknown>;
             const record: ConversionRecord = {
-              filePath: r.filePath,
-              status: r.status,
-              startedAt: r.startedAt ? new Date(r.startedAt) : undefined,
-              completedAt: r.completedAt ? new Date(r.completedAt) : undefined,
-              error: r.error,
-              outputPath: r.outputPath,
-              stdout: r.stdout,
-              stderr: r.stderr,
-              duration: r.duration,
+              filePath: r.filePath as string,
+              status: r.status as ConversionStatus,
+              startedAt: r.startedAt
+                ? new Date(r.startedAt as string)
+                : undefined,
+              completedAt: r.completedAt
+                ? new Date(r.completedAt as string)
+                : undefined,
+              error: r.error as string | undefined,
+              outputPath: r.outputPath as string | undefined,
+              stdout: r.stdout as string | undefined,
+              stderr: r.stderr as string | undefined,
+              duration: r.duration as number | undefined,
             };
             records.set(filePath, record);
           }
 
           this.state.set(jobId, {
-            jobId: batch.jobId,
-            createdAt: new Date(batch.createdAt),
-            rootPath: batch.rootPath,
+            jobId: batch.jobId as string,
+            createdAt: new Date(batch.createdAt as string),
+            rootPath: batch.rootPath as string,
             records,
           });
         }
@@ -295,7 +299,7 @@ export class ConversionStateService {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      const serialized: Record<string, any> = {};
+      const serialized: Record<string, unknown> = {};
 
       for (const [jobId, batch] of this.state.entries()) {
         const records: Record<string, ConversionRecord> = {};

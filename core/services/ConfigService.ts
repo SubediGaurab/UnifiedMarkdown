@@ -58,7 +58,7 @@ export class ConfigService {
     // No API key found
     throw new ConfigError(
       'No Gemini API key found. Please run "umd setup" to configure your API key, ' +
-      'or set the GEMINI_API_KEY environment variable.',
+        'or set the GEMINI_API_KEY environment variable.',
       'API_KEY_NOT_FOUND'
     );
   }
@@ -87,7 +87,7 @@ export class ConfigService {
         );
         throw new ConfigError(
           `Config file is malformed (invalid JSON). Please check ${ConfigService.CONFIG_FILE} or delete it to reset. ` +
-          `Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            `Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
           'INVALID_CONFIG'
         );
       }
@@ -113,7 +113,7 @@ export class ConfigService {
         if ('code' in error && error.code === 'EACCES') {
           throw new ConfigError(
             `Permission denied reading config file at ${ConfigService.CONFIG_FILE}. ` +
-            `Please check file permissions.`,
+              `Please check file permissions.`,
             'PERMISSION_DENIED'
           );
         }
@@ -159,7 +159,7 @@ export class ConfigService {
           ) {
             throw new ConfigError(
               `Permission denied creating config directory at ${ConfigService.CONFIG_DIR}. ` +
-              `Please check parent directory permissions.`,
+                `Please check parent directory permissions.`,
               'PERMISSION_DENIED'
             );
           }
@@ -183,7 +183,7 @@ export class ConfigService {
         ) {
           throw new ConfigError(
             `Permission denied writing config file to ${ConfigService.CONFIG_FILE}. ` +
-            `Please check file and directory permissions.`,
+              `Please check file and directory permissions.`,
             'PERMISSION_DENIED'
           );
         }

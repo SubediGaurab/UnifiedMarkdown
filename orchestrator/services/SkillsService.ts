@@ -13,7 +13,10 @@ const __dirname = path.dirname(__filename);
  */
 export class SkillsService {
   private static readonly SKILLS_DIR_NAME = '.claude/skills';
-  private static readonly REQUIRED_SKILLS = ['convert-to-markdown', 'open-prose'];
+  private static readonly REQUIRED_SKILLS = [
+    'convert-to-markdown',
+    'open-prose',
+  ];
 
   /**
    * Get the path to the bundled skills directory (source for installation)
@@ -66,7 +69,11 @@ export class SkillsService {
    * Install skills from bundled package to user-level ~/.claude/skills
    * This should be called during app installation (postinstall)
    */
-  static installSkills(): { success: boolean; installed: string[]; errors: string[] } {
+  static installSkills(): {
+    success: boolean;
+    installed: string[];
+    errors: string[];
+  } {
     const bundledPath = this.getBundledSkillsPath();
     const userPath = this.getUserSkillsPath();
     const installed: string[] = [];
@@ -138,7 +145,10 @@ export class SkillsService {
 
     for (const skill of this.REQUIRED_SKILLS) {
       const skillPath = path.join(userSkillsPath, skill);
-      if (!fs.existsSync(skillPath) || !fs.existsSync(path.join(skillPath, 'SKILL.md'))) {
+      if (
+        !fs.existsSync(skillPath) ||
+        !fs.existsSync(path.join(skillPath, 'SKILL.md'))
+      ) {
         missing.push(skill);
       }
     }
@@ -160,7 +170,7 @@ export class SkillsService {
     }
 
     try {
-      return fs.readdirSync(userSkillsPath).filter(name => {
+      return fs.readdirSync(userSkillsPath).filter((name) => {
         const fullPath = path.join(userSkillsPath, name);
         return fs.statSync(fullPath).isDirectory();
       });
@@ -184,16 +194,16 @@ export class SkillsService {
     }
 
     // Normalize all paths and split into components
-    const normalizedPaths = filePaths.map(p => path.resolve(p));
-    const splitPaths = normalizedPaths.map(p => p.split(path.sep));
+    const normalizedPaths = filePaths.map((p) => path.resolve(p));
+    const splitPaths = normalizedPaths.map((p) => p.split(path.sep));
 
     // Find the common prefix
-    const minLength = Math.min(...splitPaths.map(p => p.length));
+    const minLength = Math.min(...splitPaths.map((p) => p.length));
     let commonParts: string[] = [];
 
     for (let i = 0; i < minLength; i++) {
       const part = splitPaths[0][i];
-      if (splitPaths.every(p => p[i] === part)) {
+      if (splitPaths.every((p) => p[i] === part)) {
         commonParts.push(part);
       } else {
         break;

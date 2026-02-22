@@ -88,7 +88,7 @@ export const PPTX_MIME_TYPE =
  * @returns True if the extension is a supported image format
  */
 export function isImageExtension(ext: string): boolean {
-  return IMAGE_EXTENSIONS.includes(ext as any);
+  return (IMAGE_EXTENSIONS as readonly string[]).includes(ext);
 }
 
 /**
@@ -97,7 +97,7 @@ export function isImageExtension(ext: string): boolean {
  * @returns True if the extension is a supported document format
  */
 export function isDocumentExtension(ext: string): boolean {
-  return DOCUMENT_EXTENSIONS.includes(ext as any);
+  return (DOCUMENT_EXTENSIONS as readonly string[]).includes(ext);
 }
 
 /**
@@ -106,5 +106,5 @@ export function isDocumentExtension(ext: string): boolean {
  * @returns True if the extension is supported
  */
 export function isSupportedExtension(ext: string): boolean {
-  return ALL_SUPPORTED_EXTENSIONS.includes(ext as any);
+  return (ALL_SUPPORTED_EXTENSIONS as readonly string[]).includes(ext);
 }

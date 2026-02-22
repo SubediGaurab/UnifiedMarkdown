@@ -123,7 +123,12 @@ export class ProcessManagerService {
 
   private resolveTsxCommand(workspaceRoot: string): string {
     const localBinName = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
-    const localTsxBin = path.resolve(workspaceRoot, 'node_modules', '.bin', localBinName);
+    const localTsxBin = path.resolve(
+      workspaceRoot,
+      'node_modules',
+      '.bin',
+      localBinName
+    );
     return fs.existsSync(localTsxBin) ? localTsxBin : 'tsx';
   }
 
@@ -225,7 +230,10 @@ export class ProcessManagerService {
    * @param file The file to convert
    * @param workingDir The working directory to run Claude Code from (should be common parent of all files)
    */
-  async convertFileWithClaudeCode(file: DiscoveredFile, workingDir: string): Promise<ConversionResult> {
+  async convertFileWithClaudeCode(
+    file: DiscoveredFile,
+    workingDir: string
+  ): Promise<ConversionResult> {
     const startTime = Date.now();
 
     // Check file size limit
@@ -282,12 +290,15 @@ export class ProcessManagerService {
 
       // Build the full command for logging
       const args = [
-        '-p', prompt,
-        '--model', 'opus',
+        '-p',
+        prompt,
+        '--model',
+        'opus',
         '--dangerously-skip-permissions',
-        '--output-format', 'text'
+        '--output-format',
+        'text',
       ];
-      const fullCommand = `claude ${args.map(a => a.includes(' ') ? `"${a}"` : a).join(' ')}`;
+      const fullCommand = `claude ${args.map((a) => (a.includes(' ') ? `"${a}"` : a)).join(' ')}`;
       logger.info(`Claude Code command: ${fullCommand}`);
       logger.info(`Working directory: ${workingDir}`);
 
@@ -319,7 +330,9 @@ export class ProcessManagerService {
         const duration = Date.now() - startTime;
 
         if (code === 0) {
-          logger.info(`Completed Claude Code conversion: ${file.path} (${duration}ms)`);
+          logger.info(
+            `Completed Claude Code conversion: ${file.path} (${duration}ms)`
+          );
           resolve({
             filePath: file.path,
             success: true,
@@ -329,8 +342,11 @@ export class ProcessManagerService {
             stderr,
           });
         } else {
-          const error = stderr || stdout || `Claude Code process exited with code ${code}`;
-          logger.error(`Failed Claude Code conversion: ${file.path} - ${error}`);
+          const error =
+            stderr || stdout || `Claude Code process exited with code ${code}`;
+          logger.error(
+            `Failed Claude Code conversion: ${file.path} - ${error}`
+          );
           resolve({
             filePath: file.path,
             success: false,
@@ -345,7 +361,9 @@ export class ProcessManagerService {
       childProcess.on('error', (err) => {
         this.activeProcesses.delete(file.path);
         const duration = Date.now() - startTime;
-        logger.error(`Claude Code process error for ${file.path}: ${err.message}`);
+        logger.error(
+          `Claude Code process error for ${file.path}: ${err.message}`
+        );
         resolve({
           filePath: file.path,
           success: false,
@@ -394,7 +412,7 @@ export class ProcessManagerService {
     // This ensures Claude Code has access to all files being converted
     let claudeCodeWorkingDir: string | undefined;
     if (useClaudeCode) {
-      const filePaths = filesToConvert.map(f => f.path);
+      const filePaths = filesToConvert.map((f) => f.path);
       claudeCodeWorkingDir = SkillsService.findCommonParent(filePaths);
       logger.info(`Claude Code working directory: ${claudeCodeWorkingDir}`);
     }
