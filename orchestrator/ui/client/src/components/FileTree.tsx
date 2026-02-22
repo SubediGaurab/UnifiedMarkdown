@@ -1,9 +1,11 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { DiscoveredFile } from '../api/client';
+import { openPreview } from '../api/client';
 
 interface TreeNode {
   name: string;
   path: string;
+  absolutePath: string;
   isDirectory: boolean;
   file?: DiscoveredFile;
   children: TreeNode[];
@@ -21,6 +23,7 @@ function buildTree(files: DiscoveredFile[]): TreeNode {
   const root: TreeNode = {
     name: 'Root',
     path: '',
+    absolutePath: '',
     isDirectory: true,
     children: [],
   };
@@ -32,19 +35,32 @@ function buildTree(files: DiscoveredFile[]): TreeNode {
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
 
   for (const file of sortedFiles) {
-    const parts = file.path.split(/[/\\]/);
+    const separator: '/' | '\\' = file.path.includes('\\') ? '\\' : '/';
+    const isUncPath = file.path.startsWith('\\\\');
+    const hasLeadingSlash = !isUncPath && file.path.startsWith('/');
+    const rootPrefix = isUncPath ? '\\\\' : hasLeadingSlash ? '/' : '';
+    const parts = file.path.split(/[/\\]/).filter(Boolean);
     let currentPath = '';
+    let currentAbsolutePath = rootPrefix;
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       const parentPath = currentPath;
       currentPath = currentPath ? `${currentPath}/${part}` : part;
+      if (!currentAbsolutePath) {
+        currentAbsolutePath = part;
+      } else if (currentAbsolutePath === '/' || currentAbsolutePath === '\\\\') {
+        currentAbsolutePath = `${currentAbsolutePath}${part}`;
+      } else {
+        currentAbsolutePath = `${currentAbsolutePath}${separator}${part}`;
+      }
 
       if (!nodeMap.has(currentPath)) {
         const isFile = i === parts.length - 1;
         const node: TreeNode = {
           name: part,
           path: currentPath,
+          absolutePath: currentAbsolutePath,
           isDirectory: !isFile,
           file: isFile ? file : undefined,
           children: [],
@@ -108,8 +124,11 @@ function TreeItem({
   onExclude,
 }: TreeItemProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const isExpanded = expandedDirs.has(node.path);
+  const copyTargetPath = node.isDirectory ? node.absolutePath : node.file?.path ?? node.absolutePath;
+  const copyTitle = node.isDirectory ? 'Copy folder path' : 'Copy file path';
 
   // Calculate selection state for directories
   const selectionState = useMemo(() => {
@@ -145,13 +164,14 @@ function TreeItem({
     <div>
       <div
         className="tree-item"
-        style={{ paddingLeft: `${depth * 20 + 8}px` }}
+        style={{ paddingLeft: `${depth * 20 + 8}px`, cursor: node.isDirectory ? 'pointer' : undefined }}
         onContextMenu={handleContextMenu}
+        onClick={node.isDirectory ? () => onToggleExpand(node.path) : undefined}
       >
         {node.isDirectory ? (
           <span
             className="expand-icon"
-            onClick={() => onToggleExpand(node.path)}
+            onClick={(e) => { e.stopPropagation(); onToggleExpand(node.path); }}
           >
             {node.children.length > 0 ? (isExpanded ? '▼' : '▶') : ''}
           </span>
@@ -166,6 +186,7 @@ function TreeItem({
           ref={(el) => {
             if (el) el.indeterminate = selectionState === 'indeterminate';
           }}
+          onClick={(e) => e.stopPropagation()}
           onChange={handleCheckboxChange}
         />
 
@@ -177,9 +198,48 @@ function TreeItem({
           </span>
         )}
 
-        <span className="file-name" onClick={() => node.isDirectory && onToggleExpand(node.path)}>
-          {node.name}
-        </span>
+        {copyTargetPath && (
+          <button
+            className="copy-path-btn"
+            title={copied ? 'Copied!' : copyTitle}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigator.clipboard.writeText(copyTargetPath);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            {copied ? '✓' : '📋'}
+          </button>
+        )}
+
+        {node.isDirectory ? (
+          <span
+            className="file-name"
+            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              openPreview(node.absolutePath).catch(console.error);
+            }}
+          >
+            {node.name}
+          </span>
+        ) : (
+          <span
+            className="file-name"
+            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => {
+              if (node.file) {
+                openPreview(
+                  node.file.path,
+                  node.file.markdownPath,
+                ).catch(console.error);
+              }
+            }}
+          >
+            {node.name}
+          </span>
+        )}
 
         {!node.isDirectory && node.file && (
           <span className={`file-status ${node.file.hasMarkdown ? 'converted' : 'pending'}`}>
@@ -252,8 +312,27 @@ export default function FileTree({
   onExclude,
 }: FileTreeProps) {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
 
-  const tree = useMemo(() => buildTree(files), [files]);
+  const displayedFiles = useMemo(
+    () => (showPendingOnly ? files.filter((f) => !f.hasMarkdown) : files),
+    [files, showPendingOnly],
+  );
+
+  const tree = useMemo(() => buildTree(displayedFiles), [displayedFiles]);
+
+  // Auto-expand all directories when tree changes (e.g. after scan)
+  useEffect(() => {
+    const allDirs = new Set<string>();
+    const collectDirs = (node: TreeNode) => {
+      if (node.isDirectory) {
+        allDirs.add(node.path);
+        node.children.forEach(collectDirs);
+      }
+    };
+    collectDirs(tree);
+    setExpandedDirs(allDirs);
+  }, [tree]);
 
   const handleToggleExpand = useCallback((path: string) => {
     setExpandedDirs((prev) => {
@@ -349,6 +428,13 @@ export default function FileTree({
         <button className="btn btn-sm btn-secondary" onClick={selectPending}>
           Select Pending
         </button>
+        <span style={{ borderLeft: '1px solid var(--gray-300)', margin: '0 8px' }} />
+        <button
+          className={`btn btn-sm ${showPendingOnly ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setShowPendingOnly((prev) => !prev)}
+        >
+          {showPendingOnly ? 'Show All' : 'Show Pending Only'}
+        </button>
       </div>
 
       <div style={{ border: '1px solid var(--gray-200)', borderRadius: 'var(--border-radius)', overflow: 'hidden' }}>
@@ -368,6 +454,7 @@ export default function FileTree({
 
       <div className="mt-2 text-sm text-muted">
         {selectedFiles.size} of {files.length} files selected
+        {showPendingOnly && ` (showing ${displayedFiles.length} pending)`}
       </div>
     </div>
   );

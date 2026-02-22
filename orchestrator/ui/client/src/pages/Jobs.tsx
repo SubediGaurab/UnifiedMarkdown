@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { listJobs, getJobStatus, cancelJob, deleteJob, getJobLogsByPath, createEventSource, type BatchState, type ConversionRecord, type ServerEvent } from '../api/client';
+import { listJobs, getJobStatus, cancelJob, deleteJob, getJobLogsByPath, createEventSource, openPreview, type BatchState, type ConversionRecord, type ServerEvent } from '../api/client';
 import { JobProgress } from '../components/ProgressBar';
 import LogViewer from '../components/LogViewer';
 
@@ -10,6 +10,7 @@ export default function Jobs() {
   const [selectedFile, setSelectedFile] = useState<ConversionRecord | null>(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
   // Refs to access current state in SSE callbacks
   const selectedJobRef = useRef<BatchState | null>(null);
@@ -338,9 +339,33 @@ export default function Jobs() {
                       }}
                     >
                       <div className="flex justify-between items-center" style={{ minWidth: 0 }}>
-                        <span className="truncate text-sm" style={{ flex: 1, minWidth: 0 }}>
+                        {file.filePath && (
+                          <button
+                            className="copy-path-btn"
+                            title={copiedPath === file.filePath ? 'Copied!' : 'Copy file path'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(file.filePath);
+                              setCopiedPath(file.filePath);
+                              setTimeout(() => setCopiedPath(null), 1500);
+                            }}
+                          >
+                            {copiedPath === file.filePath ? '✓' : '📋'}
+                          </button>
+                        )}
+                        <span
+                          className="truncate text-sm"
+                          style={{ minWidth: 0, cursor: 'pointer', textDecoration: 'underline' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (file.filePath) {
+                              openPreview(file.filePath, file.outputPath).catch(console.error);
+                            }
+                          }}
+                        >
                           {file.filePath?.split(/[/\\]/).pop() || 'Unknown file'}
                         </span>
+                        <div style={{ flex: 1 }} />
                         <span className={`badge badge-sm ${getStatusBadge(file.status)}`}>
                           {file.status}
                         </span>

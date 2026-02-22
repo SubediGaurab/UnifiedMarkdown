@@ -52,8 +52,14 @@ cd UnifiedMarkdown
 # Install dependencies
 npm install
 
-# Build and link globally for local development
-npm run link
+# Full-stack dev mode (API + UI from source with hot reload)
+npm run dev
+
+# Run CLI from source (no build/link needed)
+npm run dev:cli -- <command-and-args>
+
+# Re-run CLI command on TypeScript file changes
+npm run dev:cli:watch -- <command-and-args>
 ```
 
 ## Setup

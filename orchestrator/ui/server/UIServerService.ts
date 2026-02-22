@@ -18,6 +18,7 @@ import { createConvertRoutes } from './routes/convertRoutes.js';
 import { createExclusionRoutes } from './routes/exclusionRoutes.js';
 import { createEventsRoutes } from './routes/eventsRoutes.js';
 import { createBrowseRoutes } from './routes/browseRoutes.js';
+import { createPreviewRoutes } from './routes/previewRoutes.js';
 
 /**
  * Event types that can be emitted by the server
@@ -60,15 +61,24 @@ export interface RouteContext {
 export class UIServerService {
   private app: Express;
   private server: http.Server | null = null;
-  private config: Required<UIConfig>;
+  private config: {
+    port: number;
+    host: string;
+    openBrowserOnStart: boolean;
+    frontendDevUrl?: string;
+  };
   private eventEmitter: EventEmitter;
   private context: RouteContext;
+  private connections: Set<import('net').Socket> = new Set();
 
   constructor(uiConfig?: UIConfig, dataLocation?: string) {
+    const frontendDevUrl = uiConfig?.frontendDevUrl?.trim();
+
     this.config = {
       port: uiConfig?.port ?? 3000,
       host: uiConfig?.host ?? 'localhost',
       openBrowserOnStart: uiConfig?.openBrowserOnStart ?? false,
+      frontendDevUrl: frontendDevUrl ? frontendDevUrl.replace(/\/+$/, '') : undefined,
     };
 
     this.eventEmitter = new EventEmitter();
@@ -132,6 +142,7 @@ export class UIServerService {
     this.app.use('/api/exclusions', createExclusionRoutes(this.context));
     this.app.use('/api/events', createEventsRoutes(this.context));
     this.app.use('/api/browse', createBrowseRoutes());
+    this.app.use('/api/preview', createPreviewRoutes());
 
     // Health check
     this.app.get('/api/health', (_req: Request, res: Response) => {
@@ -158,11 +169,35 @@ export class UIServerService {
       }
     });
 
+    if (this.config.frontendDevUrl) {
+      const frontendDevUrl = this.config.frontendDevUrl;
+
+      // During local development, serve the React app from Vite instead of built static assets.
+      this.app.get('*', (req: Request, res: Response, next: NextFunction) => {
+        if (req.path.startsWith('/api')) {
+          next();
+          return;
+        }
+
+        try {
+          const redirectUrl = new URL(req.originalUrl, `${frontendDevUrl}/`).toString();
+          res.redirect(302, redirectUrl);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Invalid frontend dev URL';
+          res.status(500).json({ error: message });
+        }
+      });
+      return;
+    }
+
     // Serve static files for React frontend (when built)
-    // Resolve from this file's location (dist/orchestrator/ui/server/) to project root
+    // Works from both compiled (dist/orchestrator/ui/server/) and source (orchestrator/ui/server/)
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const projectRoot = path.join(__dirname, '..', '..', '..', '..');
+    const isCompiledDist = __dirname.includes(`${path.sep}dist${path.sep}`);
+    const projectRoot = isCompiledDist
+      ? path.join(__dirname, '..', '..', '..', '..')   // dist/orchestrator/ui/server/ → root
+      : path.join(__dirname, '..', '..', '..');         // orchestrator/ui/server/ → root
     const clientDistPath = path.join(
       projectRoot,
       'orchestrator',
@@ -244,13 +279,23 @@ export class UIServerService {
           this.config.port,
           this.config.host,
           () => {
-            const url = `http://${this.config.host}:${this.config.port}`;
-            logger.success(`UI server started at ${url}`);
-            console.log(`\n  UI Server running at: ${url}`);
+            // Track open connections so we can destroy them on shutdown
+            this.server!.on('connection', (socket) => {
+              this.connections.add(socket);
+              socket.once('close', () => this.connections.delete(socket));
+            });
+            const apiServerUrl = `http://${this.config.host}:${this.config.port}`;
+            const uiUrl = this.config.frontendDevUrl ?? apiServerUrl;
+            logger.success(`UI server started at ${apiServerUrl}`);
+            console.log(`\n  UI Server running at: ${apiServerUrl}`);
+            if (this.config.frontendDevUrl) {
+              console.log(`  Frontend (Vite) URL: ${uiUrl}`);
+              console.log('  UI routes are redirected to the frontend dev server');
+            }
             console.log('  API endpoints available at: /api/*\n');
 
             if (this.config.openBrowserOnStart) {
-              this.openBrowser(url);
+              this.openBrowser(uiUrl);
             }
 
             resolve();
@@ -277,11 +322,18 @@ export class UIServerService {
   async stop(): Promise<void> {
     return new Promise((resolve) => {
       if (this.server) {
+        // Stop accepting new connections
         this.server.close(() => {
           logger.info('UI server stopped');
           this.server = null;
           resolve();
         });
+
+        // Destroy all open connections (SSE, keep-alive, etc.)
+        for (const socket of this.connections) {
+          socket.destroy();
+        }
+        this.connections.clear();
       } else {
         resolve();
       }

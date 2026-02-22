@@ -5,6 +5,7 @@ import {
   isSupportedExtension,
 } from '../../core/constants/fileTypes.js';
 import { logger } from '../../core/utils/logger.js';
+import { normalizeInputPath } from '../utils/pathInput.js';
 
 /**
  * Represents a discovered file with its conversion status
@@ -142,7 +143,7 @@ export class FileDiscoveryService {
    * Scan a directory for convertible files
    */
   async scan(rootPath: string): Promise<ScanResult> {
-    const absolutePath = path.resolve(rootPath);
+    const absolutePath = path.resolve(normalizeInputPath(rootPath));
 
     if (!fs.existsSync(absolutePath)) {
       throw new Error(`Path does not exist: ${absolutePath}`);

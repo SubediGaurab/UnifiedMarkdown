@@ -8,6 +8,12 @@ export interface UIConfig {
   host?: string;
   /** Whether to open browser automatically on server start */
   openBrowserOnStart?: boolean;
+  /**
+   * Frontend dev server URL. When set, non-API routes are redirected here
+   * instead of serving built static assets.
+   * Example: 'http://localhost:5173'
+   */
+  frontendDevUrl?: string;
 }
 
 /**

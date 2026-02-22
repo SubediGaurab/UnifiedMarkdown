@@ -3,6 +3,7 @@ import * as path from 'path';
 import { RouteContext } from '../UIServerService.js';
 import { FileDiscoveryService, ScanOptions } from '../../../services/FileDiscoveryService.js';
 import { logger } from '../../../../core/utils/logger.js';
+import { normalizeInputPath } from '../../../utils/pathInput.js';
 
 /**
  * Request body for POST /api/scan
@@ -32,8 +33,12 @@ export function createScanRoutes(context: RouteContext): Router {
       if (!body.rootPath) {
         return res.status(400).json({ error: 'rootPath is required' });
       }
+      const normalizedRootPath = normalizeInputPath(body.rootPath);
+      if (!normalizedRootPath) {
+        return res.status(400).json({ error: 'rootPath is required' });
+      }
 
-      const rootPath = path.resolve(body.rootPath);
+      const rootPath = path.resolve(normalizedRootPath);
       // Always perform a fresh scan (cache is only used for status/history)
 
       // Emit scan start event

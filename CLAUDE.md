@@ -68,13 +68,38 @@ interface IOCRService {
 const service = OCRServiceFactory.getService(inputPath); // returns IOCRService
 ```
 
+## Development
+
+```bash
+npm install                                    # Install root + build deps
+cd orchestrator/ui/client && npm install && cd ../../..  # Install UI client deps
+npm run dev                                    # Start API + UI with hot reload
+```
+
+`npm run dev` runs both services concurrently:
+- **API server** (Express) at `http://localhost:3000` — auto-restarts on server file changes (tsx --watch)
+- **UI dev server** (Vite) at `http://localhost:5173` — HMR for React changes, proxies `/api` to port 3000
+
+Open `http://localhost:5173` during development. Individual scripts:
+- `npm run dev:api` — API server only
+- `npm run dev:web` — UI dev server only
+- `npm run dev:cli -- <command-and-args>` — run CLI from source
+- `npm run dev:cli:watch -- <command-and-args>` — rerun CLI on TS file changes
+- `npm run dev:server` and `npm run dev:ui` are maintained as aliases
+
 ## Commands
 
 ```bash
-npm run build          # Compile TypeScript
+npm run dev            # Start dev servers (API + UI) with hot reload
+npm run dev:api        # Start API dev server only
+npm run dev:web        # Start UI dev server only (Vite)
+npm run dev:cli -- ... # Run CLI from source (no build/link)
+npm run dev:cli:watch -- ... # Watch mode for CLI from source
+npm run build          # Compile TypeScript + build UI for production
 npm run link           # Build + link globally
 umd setup              # Configure Gemini API key
 umd convert <path>     # Convert file or directory
+umd orchestrate ui     # Start production UI server (serves built client)
 ```
 
 ## Supported Formats

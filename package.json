@@ -14,6 +14,13 @@
     "README.md"
   ],
   "scripts": {
+    "dev": "concurrently -n api,ui -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "tsx --watch cli/cli.ts orchestrate ui --frontend-dev-url http://localhost:5173",
+    "dev:web": "cd orchestrator/ui/client && npm run dev",
+    "dev:server": "npm run dev:api",
+    "dev:ui": "npm run dev:web",
+    "dev:cli": "tsx cli/cli.ts",
+    "dev:cli:watch": "tsx --watch cli/cli.ts",
     "build": "tsc && npm run build:ui",
     "build:core": "tsc",
     "build:ui": "cd orchestrator/ui/client && npm run build",
@@ -81,10 +88,12 @@
     "@types/turndown": "^5.0.6",
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
+    "concurrently": "^9.2.1",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "prettier": "^3.4.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
   },
   "engines": {

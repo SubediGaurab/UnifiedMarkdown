@@ -396,6 +396,14 @@ export function useServerEvents() {
   return { events, connected, clearEvents };
 }
 
+// Open a file in Chrome preview or OS default app
+export async function openPreview(originalPath: string, markdownPath?: string): Promise<void> {
+  await fetchJson('/preview/open', {
+    method: 'POST',
+    body: JSON.stringify({ originalPath, markdownPath }),
+  });
+}
+
 // Browse for directory using native OS dialog
 export async function browseDirectory(): Promise<string | null> {
   const res = await fetch(`${API_BASE}/browse`);

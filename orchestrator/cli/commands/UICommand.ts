@@ -14,6 +14,10 @@ export function registerUICommand(parent: Command): void {
     .option('-p, --port <number>', 'Port to run the server on', '3000')
     .option('-h, --host <string>', 'Host to bind to', 'localhost')
     .option('-o, --open', 'Open browser automatically on start', false)
+    .option(
+      '--frontend-dev-url <url>',
+      'Frontend dev server URL (redirect non-API routes here during development)'
+    )
     .action(async (options) => {
       const port = parseInt(options.port, 10);
       if (isNaN(port) || port < 1 || port > 65535) {
@@ -21,10 +25,21 @@ export function registerUICommand(parent: Command): void {
         process.exit(1);
       }
 
+      let frontendDevUrl: string | undefined;
+      if (typeof options.frontendDevUrl === 'string' && options.frontendDevUrl.trim().length > 0) {
+        try {
+          frontendDevUrl = new URL(options.frontendDevUrl.trim()).toString();
+        } catch {
+          console.error(chalk.red('Error: Invalid --frontend-dev-url. Expected a full URL like http://localhost:5173'));
+          process.exit(1);
+        }
+      }
+
       const uiConfig: UIConfig = {
         port,
         host: options.host,
         openBrowserOnStart: options.open,
+        frontendDevUrl,
       };
 
       console.log(chalk.cyan('\n╭─────────────────────────────────────────╮'));
@@ -34,8 +49,15 @@ export function registerUICommand(parent: Command): void {
       const server = new UIServerService(uiConfig);
 
       // Handle shutdown gracefully
+      let shuttingDown = false;
       const shutdown = async (signal: string) => {
+        if (shuttingDown) {
+          console.log(chalk.red('\nForcing exit...'));
+          process.exit(1);
+        }
+        shuttingDown = true;
         console.log(chalk.yellow(`\nReceived ${signal}. Shutting down gracefully...`));
+        console.log(chalk.gray('(Press Ctrl+C again to force exit)'));
         await server.stop();
         process.exit(0);
       };

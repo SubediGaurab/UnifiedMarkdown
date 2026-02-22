@@ -2,6 +2,7 @@ import spawn from 'cross-spawn';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import * as fs from 'fs';
 import { logger } from '../../core/utils/logger.js';
 import { DiscoveredFile } from './FileDiscoveryService.js';
 import {
@@ -44,34 +45,86 @@ export interface BatchConvertOptions {
   useClaudeCode?: boolean;
 }
 
+interface UmdCommand {
+  command: string;
+  argsPrefix: string[];
+  description: string;
+}
+
 /**
  * Service for managing umd convert processes
  */
 export class ProcessManagerService {
   private stateService: ConversionStateService;
   private activeProcesses: Map<string, ChildProcess>;
-  private umdPath: string;
+  private umdCommand: UmdCommand;
 
   constructor(stateService?: ConversionStateService) {
     this.stateService = stateService || new ConversionStateService();
     this.activeProcesses = new Map();
 
-    // Resolve path to umd CLI
-    // In production, use the globally installed umd command
-    // For development, use the local dist
-    this.umdPath = this.resolveUmdPath();
+    // Resolve command to run the UMD CLI.
+    // In dev (tsx), prefer source CLI for hot reload. In prod, use built JS.
+    this.umdCommand = this.resolveUmdCommand();
+    logger.debug(`UMD command resolved: ${this.umdCommand.description}`);
   }
 
   /**
-   * Resolve the path to the umd CLI
+   * Resolve command/args used to execute UMD CLI
    */
-  private resolveUmdPath(): string {
-    // Try to find local dist first (for development)
-    const localPath = path.resolve(
-      __dirname,
-      '../../cli/cli.js'
-    );
-    return localPath;
+  private resolveUmdCommand(): UmdCommand {
+    const sourceCliTs = path.resolve(__dirname, '../../cli/cli.ts');
+    const bundledCliJs = path.resolve(__dirname, '../../cli/cli.js');
+
+    // Source runtime (tsx): always prefer source CLI to avoid stale builds.
+    if (__filename.endsWith('.ts') && fs.existsSync(sourceCliTs)) {
+      const projectRoot = path.dirname(path.dirname(sourceCliTs));
+      const tsxBin = this.resolveTsxCommand(projectRoot);
+      return {
+        command: tsxBin,
+        argsPrefix: [sourceCliTs],
+        description: `${tsxBin} ${sourceCliTs}`,
+      };
+    }
+
+    // Built runtime: run the JS entrypoint with the same Node executable.
+    const jsCli = [
+      bundledCliJs,
+      path.resolve(process.cwd(), 'dist/cli/cli.js'),
+      path.resolve(process.cwd(), 'cli/cli.js'),
+    ].find((candidate) => fs.existsSync(candidate));
+
+    if (jsCli) {
+      return {
+        command: process.execPath,
+        argsPrefix: [jsCli],
+        description: `${process.execPath} ${jsCli}`,
+      };
+    }
+
+    // Fallback for uncommon dev setups where TS source exists but runtime path heuristic failed.
+    if (fs.existsSync(sourceCliTs)) {
+      const projectRoot = path.dirname(path.dirname(sourceCliTs));
+      const tsxBin = this.resolveTsxCommand(projectRoot);
+      return {
+        command: tsxBin,
+        argsPrefix: [sourceCliTs],
+        description: `${tsxBin} ${sourceCliTs}`,
+      };
+    }
+
+    // Last resort: rely on globally installed command.
+    return {
+      command: 'umd',
+      argsPrefix: [],
+      description: 'umd',
+    };
+  }
+
+  private resolveTsxCommand(workspaceRoot: string): string {
+    const localBinName = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
+    const localTsxBin = path.resolve(workspaceRoot, 'node_modules', '.bin', localBinName);
+    return fs.existsSync(localTsxBin) ? localTsxBin : 'tsx';
   }
 
   /**
@@ -102,8 +155,9 @@ export class ProcessManagerService {
 
     return new Promise((resolve) => {
       logger.info(`Starting conversion: ${file.path}`);
+      const commandArgs = [...this.umdCommand.argsPrefix, 'convert', file.path];
 
-      const process = spawn('node', [this.umdPath, 'convert', file.path], {
+      const process = spawn(this.umdCommand.command, commandArgs, {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
@@ -151,11 +205,12 @@ export class ProcessManagerService {
       process.on('error', (error) => {
         this.activeProcesses.delete(file.path);
         const duration = Date.now() - startTime;
-        logger.error(`Process error for ${file.path}: ${error.message}`);
+        const spawnError = `Failed to run command "${this.umdCommand.description} convert <file>": ${error.message}`;
+        logger.error(`Process error for ${file.path}: ${spawnError}`);
         resolve({
           filePath: file.path,
           success: false,
-          error: error.message,
+          error: spawnError,
           duration,
           stdout,
           stderr,

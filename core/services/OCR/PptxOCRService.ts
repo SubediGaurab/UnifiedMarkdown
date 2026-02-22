@@ -29,9 +29,10 @@ export class PptxOCRService implements IOCRService {
     }
 
     // 2. Check prerequisites
-    if (!(await this.isCommandAvailable('libreoffice'))) {
+    const libreOfficeCommand = await this.resolveLibreOfficeCommand();
+    if (!libreOfficeCommand) {
       const error =
-        "LibreOffice is required for PPTX conversion. Please install it (e.g., 'sudo apt install libreoffice').";
+        "LibreOffice is required for PPTX conversion. Could not find 'libreoffice' or 'soffice' in PATH. Please install it (e.g., 'brew install --cask libreoffice' on macOS or 'sudo apt install libreoffice' on Linux).";
       logger.error(error);
       throw new Error(error);
     }
@@ -56,7 +57,7 @@ export class PptxOCRService implements IOCRService {
 
       // 4. Convert using execFile to prevent command injection
       try {
-        await execFilePromise('libreoffice', [
+        await execFilePromise(libreOfficeCommand, [
           '--headless',
           '--convert-to',
           'pdf',
@@ -152,9 +153,38 @@ export class PptxOCRService implements IOCRService {
     }
   }
 
+  private async resolveLibreOfficeCommand(): Promise<string | null> {
+    const commandCandidates = ['libreoffice', 'soffice'];
+    for (const candidate of commandCandidates) {
+      if (await this.isCommandAvailable(candidate)) {
+        return candidate;
+      }
+    }
+
+    // Fallbacks for common macOS install locations when PATH is limited.
+    const absoluteCandidates = [
+      '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+      path.join(os.homedir(), 'Applications/LibreOffice.app/Contents/MacOS/soffice'),
+      '/opt/homebrew/bin/soffice',
+      '/usr/local/bin/soffice',
+    ];
+    for (const candidate of absoluteCandidates) {
+      if (await this.isCommandAvailable(candidate)) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
   private async isCommandAvailable(command: string): Promise<boolean> {
+    if (path.isAbsolute(command)) {
+      return fs.existsSync(command);
+    }
+
     try {
-      await execFilePromise('which', [command]);
+      const lookupCommand = process.platform === 'win32' ? 'where' : 'which';
+      await execFilePromise(lookupCommand, [command]);
       return true;
     } catch {
       return false;

@@ -1,5 +1,21 @@
 /* Oceanic Theme - UnifiedMarkdown Orchestrator UI */
 
+/* Copy path button with tooltip */
+.copy-path-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 12px;
+  opacity: 0.5;
+  position: relative;
+  flex-shrink: 0;
+}
+.copy-path-btn:hover {
+  opacity: 1;
+  z-index: 20;
+}
+
 :root {
   /* Ocean color palette */
   --ocean-deep: #0a1628;
