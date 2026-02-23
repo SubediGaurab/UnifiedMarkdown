@@ -61,7 +61,7 @@ choice **the input type**:
       session """
         Check if this file should be processed:
         1. Is it a visual/binary type?
-           Yes: .png, .jpg, .jpeg, .gif, .tiff, .bmp, .pdf, .doc, .docx, .ppt, .pptx, .xls, .xlsx
+           Yes: .png, .jpg, .jpeg, .webp, .gif, .bmp, .tiff, .tif, .svg, .pdf, .docx, .ppt, .pptx
            No: .txt, .json, .md, and other text-native formats (skip these)
         2. Does a corresponding .md file already exist?
            If {item}.{extension}.md exists, skip it (already converted)

@@ -1,194 +1,137 @@
 # UnifiedMarkdown (umd)
 
-AI-powered CLI tool to convert images, PDFs, and Word documents to Markdown using Google Gemini.
+AI-powered CLI and web UI to convert images, PDFs, DOCX, and PPTX documents to Markdown using Google Gemini.
 
 ## Features
 
-- Convert images (PNG, JPG, JPEG, WEBP, GIF, BMP, TIFF, SVG) to Markdown
-- Convert PDF documents to Markdown
-- Convert DOCX files to Markdown with embedded image captions and chart descriptions
-- Batch process entire directories
-- Directory-level exclusions via `.umdignore` files (gitignore-style patterns)
-- Powered by Google Gemini AI for accurate text extraction
-- Automatic backup of existing `.md` files
-- Easy setup with interactive configuration
+- **Format Support:** Convert images (PNG, JPG, JPEG, WEBP, GIF, BMP, TIFF, SVG) and documents (PDF, DOCX, PPTX) to Markdown.
+- **Batch Processing:** Scan and convert entire directories in parallel with configurable concurrency.
+- **Web UI:** Built-in web dashboard to browse directories, manage conversions, configure exclusions, and monitor jobs in real time via SSE.
+- **Directory Exclusions:** Respects `.umdignore` files (gitignore-style patterns) and custom exclusion rules managed through the UI.
+- **Claude Code Skills:** Bundled skills let you convert files using natural language in Claude Code sessions.
+- **Easy Setup:** Interactive CLI configuration for your Gemini API key.
 
 ## Prerequisites
 
 - Node.js >= 18.0.0
 - Google Gemini API key (free tier available at [Google AI Studio](https://aistudio.google.com/apikey))
-- LibreOffice (for PPTX conversion):
+- LibreOffice (required for PPTX/PPT conversion only):
+  - macOS: `brew install libreoffice`
   - Ubuntu/Debian: `sudo apt install libreoffice`
-  - MacOS: `brew install libreoffice`
   - Windows: Install from official website
 
 ## Installation
-
-### Global Installation (Recommended)
-
-Install from npm:
 
 ```bash
 npm install -g unified-markdown
 ```
 
-Or install locally from the repository:
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd UnifiedMarkdown
-
-# Install globally
-npm install -g .
-```
-
-### Local Development
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd UnifiedMarkdown
-
-# Install dependencies
-npm install
-
-# Full-stack dev mode (API + UI from source with hot reload)
-npm run dev
-
-# Run CLI from source (no build/link needed)
-npm run dev:cli -- <command-and-args>
-
-# Re-run CLI command on TypeScript file changes
-npm run dev:cli:watch -- <command-and-args>
-```
-
 ## Setup
 
-After installation, run the setup command to configure your API key:
+Run the interactive setup to configure your Gemini API key:
 
 ```bash
 umd setup
 ```
 
-This interactive setup will:
-1. Prompt you for your Gemini API key
-2. Validate the key with a test request
-3. Save it to `~/.umd/config.json`
-
-You can get a free API key from [Google AI Studio](https://aistudio.google.com/apikey).
-
-### Alternative: Environment Variable
-
-Instead of running setup, you can set the `GEMINI_API_KEY` environment variable:
+Alternatively, set the environment variable directly:
 
 ```bash
 export GEMINI_API_KEY="your-api-key-here"
 ```
 
-Add this to your `~/.bashrc`, `~/.zshrc`, or equivalent to make it permanent.
+Configuration is stored at `~/.umd/config.json`.
 
 ## Usage
 
 ### Convert a Single File
 
-Convert an image to Markdown:
+Converts a file to a `.md` file alongside the original:
 
 ```bash
-umd convert image.png
+umd convert photo.png
+umd convert /path/to/document.pdf
 ```
 
-Convert a PDF to Markdown:
-
-```bash
-umd convert document.pdf
-```
-
-Convert a Word document to Markdown:
-
-```bash
-umd convert document.docx
-```
-
-### Convert with Absolute Path
-
-```bash
-umd convert /path/to/file/image.png
-```
-
-### Batch Process a Directory
-
-Convert all supported files in a directory:
+### Convert a Directory
 
 ```bash
 umd convert /path/to/directory
 ```
 
-### Directory-level Exclusions with `.umdignore`
+### Scan a Directory
 
-You can add a `.umdignore` file in any directory. During scanning:
-- `.umdignore` itself is always ignored
-- Rules from parent and child `.umdignore` files are applied hierarchically
-- Patterns are gitignore-like (`*`, `?`, `**`, `/`, trailing `/` for directories, `!` negation)
-- Comment lines starting with `#` are ignored by the app (for human notes)
+Preview what would be converted without converting:
 
-Example `.umdignore`:
-
-```text
-# Generated exports (can be recreated)
-exports/
-
-# Temporary files
-*.tmp
-
-# Keep this specific temp file
-!important.tmp
+```bash
+umd orchestrate scan /path/to/directory
+umd orch scan /path/to/directory --pending-only
 ```
 
-### Output
+### Batch Convert in Parallel
 
-The tool creates a `.md` file with the same name as the input file:
-- `image.png` → `image.png.md`
-- `document.pdf` → `document.pdf.md`
+Scan and convert all supported files concurrently:
 
-If a `.md` file already exists, it's automatically backed up with a timestamp:
-- `image.png.md` → `image.png.md.20251123.143022` (YYYYMMDD.HHMMSS)
+```bash
+umd orchestrate convert /path/to/directory
+umd orch convert /path/to/directory --concurrency 5
+umd orch convert /path/to/directory --dry-run
+```
+
+### Start the Web UI
+
+Launch a local web dashboard to visually manage conversions:
+
+```bash
+umd orchestrate ui
+umd orch ui --port 8080 --open
+```
+
+The UI provides:
+- **Dashboard** with live stats and activity feed
+- **File Browser** with directory scanning, file tree with selection, and native OS folder picker
+- **Jobs** page with real-time progress tracking and log viewer
+- **Settings** for managing exclusion rules and viewing configuration
+
+### Check Job Status
+
+```bash
+umd orchestrate status          # Show recent jobs
+umd orch status <jobId>         # Show specific job details
+umd orch status --all           # Show all jobs
+```
 
 ## Supported File Types
 
-### Images
-- PNG (`.png`)
-- JPEG (`.jpg`, `.jpeg`)
-- WebP (`.webp`)
-- GIF (`.gif`)
-- BMP (`.bmp`)
-- TIFF (`.tiff`, `.tif`)
-- SVG (`.svg`)
+- **Images:** `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.svg`
+- **Documents:** `.pdf`, `.docx`, `.pptx`, `.ppt`
 
-### Documents
-- PDF (`.pdf`)
-- Word (`.docx`)
-- PowerPoint (`.pptx`)
+## `.umdignore`
 
-## Alternative: Using Claude Code Skills
+Place a `.umdignore` file in any directory to exclude files from scanning and batch conversion. Uses gitignore-style patterns:
 
-If you use [Claude Code](https://claude.ai/claude-code), this repository includes built-in skills that let you convert files using natural language.
+```
+# Ignore all PDFs in this directory
+*.pdf
 
-### Usage
+# Ignore a specific subdirectory
+drafts/
 
-Simply ask Claude to convert files:
+# Negation to re-include
+!important.pdf
+```
+
+## Alternative: Claude Code Skills
+
+If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), this package includes bundled skills that are automatically installed to `~/.claude/skills` during `npm install`. Convert files using natural language:
 
 ```
 Convert document.pdf to markdown
-```
-
-```
 Convert all files in ./docs/ to markdown
 ```
 
-Claude will use the `convert-to-markdown` skill to process your files.
+The web UI also has a "Use Claude Code" toggle for batch conversions, which uses the bundled skill with Claude Code's `--dangerously-skip-permissions` flag.
 
-### Available Skills
+## License
 
-- **convert-to-markdown**: Convert single files or directories to Markdown format
-- **open-prose**: OpenProse workflow orchestration (used internally by convert-to-markdown)
+MIT

@@ -1,12 +1,14 @@
 # Source files (only publish compiled dist/)
-src/
+core/
+cli/
+orchestrator/
+!orchestrator/ui/client/dist/
 *.ts
 !*.d.ts
 tsconfig.json
 
 # Development and testing
-.claude/
-.claude.md
+CLAUDE.md
 *.test.js
 *.test.ts
 *.spec.js
@@ -17,6 +19,7 @@ coverage/
 
 # Build and IDE configuration
 .eslintrc.json
+eslint.config.js
 .prettierrc
 .vscode/
 .idea/
