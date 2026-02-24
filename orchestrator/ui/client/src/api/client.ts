@@ -126,6 +126,30 @@ export async function getSkillsStatus(): Promise<SkillsStatus> {
   return fetchJson('/skills/status');
 }
 
+// Config API
+export interface AppConfig {
+  apiKey: string;
+  hasApiKey: boolean;
+  ocrModel: string;
+  textModel: string;
+  configPath: string;
+}
+
+export async function getConfig(): Promise<AppConfig> {
+  return fetchJson('/config');
+}
+
+export async function updateConfig(config: { apiKey?: string; ocrModel?: string; textModel?: string }): Promise<{ success: boolean; message: string }> {
+  return fetchJson('/config', {
+    method: 'PUT',
+    body: JSON.stringify(config),
+  });
+}
+
+export async function restartServer(): Promise<{ success: boolean; message: string }> {
+  return fetchJson('/restart', { method: 'POST' });
+}
+
 // Scan API response type (matches actual backend response)
 export interface ScanApiResponse {
   files: DiscoveredFile[];

@@ -19,6 +19,7 @@ import { createExclusionRoutes } from './routes/exclusionRoutes.js';
 import { createEventsRoutes } from './routes/eventsRoutes.js';
 import { createBrowseRoutes } from './routes/browseRoutes.js';
 import { createPreviewRoutes } from './routes/previewRoutes.js';
+import { createConfigRoutes } from './routes/configRoutes.js';
 
 /**
  * Event types that can be emitted by the server
@@ -143,6 +144,17 @@ export class UIServerService {
     this.app.use('/api/events', createEventsRoutes(this.context));
     this.app.use('/api/browse', createBrowseRoutes());
     this.app.use('/api/preview', createPreviewRoutes());
+    this.app.use('/api/config', createConfigRoutes());
+
+    // Restart endpoint
+    this.app.post('/api/restart', (_req: Request, res: Response) => {
+      res.json({ success: true, message: 'Server restarting...' });
+      // Delay to let response flush, then exit so the process manager restarts us
+      setTimeout(() => {
+        logger.info('Server restart requested via API');
+        process.exit(0);
+      }, 500);
+    });
 
     // Health check
     this.app.get('/api/health', (_req: Request, res: Response) => {
