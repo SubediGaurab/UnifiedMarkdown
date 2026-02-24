@@ -32,7 +32,8 @@
     "format": "prettier --write \"core/**/*.ts\" \"cli/**/*.ts\" \"orchestrator/**/*.ts\"",
     "format:check": "prettier --check \"core/**/*.ts\" \"cli/**/*.ts\" \"orchestrator/**/*.ts\"",
     "prepack": "npm run build",
-    "postinstall": "node scripts/postinstall.js",
+    "install:ui": "cd orchestrator/ui/client && npm install",
+    "postinstall": "npm run install:ui && node scripts/postinstall.js",
     "install-skills": "node scripts/postinstall.js"
   },
   "keywords": [
