@@ -139,6 +139,10 @@ export async function getConfig(): Promise<AppConfig> {
   return fetchJson('/config');
 }
 
+export async function getApiKey(): Promise<{ apiKey: string }> {
+  return fetchJson('/config/apikey');
+}
+
 export async function updateConfig(config: { apiKey?: string; ocrModel?: string; textModel?: string }): Promise<{ success: boolean; message: string }> {
   return fetchJson('/config', {
     method: 'PUT',

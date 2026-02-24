@@ -39,6 +39,21 @@ export function createConfigRoutes(): Router {
   });
 
   /**
+   * GET /api/config/apikey
+   * Get the unmasked API key (for show/hide toggle)
+   */
+  router.get('/apikey', (_req: Request, res: Response) => {
+    try {
+      const config = ConfigService.readConfig();
+      res.json({ apiKey: config.apiKey || '' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to read config';
+      logger.error(`Config read failed: ${message}`);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  /**
    * PUT /api/config
    * Update configuration fields
    */

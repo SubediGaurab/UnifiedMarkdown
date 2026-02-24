@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import ExclusionManager from '../components/ExclusionManager';
 import DaemonStatus from '../components/DaemonStatus';
-import { getDefaultExclusions, getConfig, updateConfig, restartServer, type DefaultExclusionRule, type AppConfig } from '../api/client';
+import { getDefaultExclusions, getConfig, getApiKey, updateConfig, restartServer, type DefaultExclusionRule, type AppConfig } from '../api/client';
 
 type SettingsTab = 'exclusions' | 'daemon' | 'general';
 
@@ -194,7 +194,22 @@ export default function Settings() {
                       />
                       <button
                         className="btn btn-secondary"
-                        onClick={() => setShowApiKey(!showApiKey)}
+                        onClick={async () => {
+                          if (!showApiKey && !apiKey && config?.hasApiKey) {
+                            // Fetch the real key to display it
+                            try {
+                              const { apiKey: realKey } = await getApiKey();
+                              setApiKey(realKey);
+                            } catch {
+                              // Fall through — just toggle visibility
+                            }
+                          }
+                          if (showApiKey && !dirty) {
+                            // Hiding — clear back to placeholder mode
+                            setApiKey('');
+                          }
+                          setShowApiKey(!showApiKey);
+                        }}
                         style={{ minWidth: 70 }}
                       >
                         {showApiKey ? 'Hide' : 'Show'}
