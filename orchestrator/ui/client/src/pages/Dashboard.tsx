@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getScanResult, listJobs, checkHealth, useServerEvents, type ScanResult, type BatchState } from '../api/client';
-import ProgressBar from '../components/ProgressBar';
+import { listJobs, checkHealth, useServerEvents, type BatchState } from '../api/client';
 import DaemonStatus from '../components/DaemonStatus';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { events, connected } = useServerEvents();
-  const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [jobs, setJobs] = useState<BatchState[]>([]);
   const [loading, setLoading] = useState(true);
   const [serverStatus, setServerStatus] = useState<{ uptime: number } | null>(null);
@@ -15,20 +13,13 @@ export default function Dashboard() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [scans, jobList, health] = await Promise.all([
-        getScanResult().catch(() => []),
+      const [jobList, health] = await Promise.all([
         listJobs().catch(() => []),
         checkHealth(),
       ]);
-      // Handle various response formats
-      let scanArray: ScanResult[] = [];
-      if (Array.isArray(scans)) {
-        scanArray = scans.filter(s => s && s.pending && s.converted);
-      } else if (scans && typeof scans === 'object' && 'pending' in scans) {
-        scanArray = [scans as ScanResult];
-      }
-      setScanResults(scanArray);
-      setJobs(Array.isArray(jobList) ? jobList : []);
+      const jobsArray = Array.isArray(jobList) ? jobList : [];
+      jobsArray.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+      setJobs(jobsArray);
       setServerStatus(health);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -52,9 +43,12 @@ export default function Dashboard() {
     }
   }, [events, loadData]);
 
-  // Calculate stats (with safe defaults)
-  const totalPending = scanResults.reduce((sum, s) => sum + (s.pending?.length || 0), 0);
-  const totalConverted = scanResults.reduce((sum, s) => sum + (s.converted?.length || 0), 0);
+  // Calculate stats from job data
+  const totalPending = jobs.reduce((sum, j) => {
+    const pending = j.totalFiles - j.completedFiles - j.failedFiles;
+    return sum + (pending > 0 ? pending : 0);
+  }, 0);
+  const totalConverted = jobs.reduce((sum, j) => sum + (j.completedFiles || 0), 0);
   const activeJobs = jobs.filter((j) => j.status === 'running').length;
   const failedFiles = jobs.reduce((sum, j) => sum + (j.failedFiles || 0), 0);
 
@@ -259,38 +253,6 @@ export default function Dashboard() {
         <DaemonStatus compact />
       </div>
 
-      {/* Scan Results Summary */}
-      {scanResults.length > 0 && (
-        <div className="card mt-4">
-          <div className="card-header">
-            <h2>Scanned Directories</h2>
-            <span className="text-sm text-muted">{scanResults.length} directories</span>
-          </div>
-          {scanResults.map((scan, index) => (
-            <div
-              key={index}
-              style={{
-                padding: '12px 0',
-                borderBottom: index < scanResults.length - 1 ? '1px solid var(--gray-100)' : 'none',
-              }}
-            >
-              <div className="flex justify-between items-center mb-2">
-                <span className="truncate" style={{ fontWeight: 500, flex: 1 }}>
-                  {scan.rootPath}
-                </span>
-                <span className="text-sm text-muted">
-                  {new Date(scan.scannedAt).toLocaleString()}
-                </span>
-              </div>
-              <ProgressBar
-                value={scan.converted.length}
-                max={scan.totalFiles}
-                variant={scan.pending.length === 0 ? 'success' : 'default'}
-              />
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
