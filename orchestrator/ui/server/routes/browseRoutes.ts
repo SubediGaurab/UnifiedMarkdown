@@ -23,9 +23,10 @@ export function createBrowseRoutes(): Router {
     } else if (os === 'win32') {
       cmd = 'powershell';
       args = [
+        '-Sta',
         '-NoProfile',
         '-Command',
-        `Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }`,
+        'Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = "Select a directory to scan"; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }',
       ];
     } else {
       // Linux - try zenity, fall back to kdialog
