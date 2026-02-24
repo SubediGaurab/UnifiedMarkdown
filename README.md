@@ -8,7 +8,7 @@ AI-powered CLI and web UI to convert images, PDFs, DOCX, and PPTX documents to M
 - **Batch Processing:** Scan and convert entire directories in parallel with configurable concurrency.
 - **Web UI:** Built-in web dashboard to browse directories, manage conversions, configure exclusions, and monitor jobs in real time via SSE.
 - **Directory Exclusions:** Respects `.umdignore` files (gitignore-style patterns) and custom exclusion rules managed through the UI.
-- **Claude Code Skills:** Bundled skills let you convert files using natural language in Claude Code sessions.
+- **Claude Code Skills:** Bundled skills let you alternatively convert files using natural language in Claude Code sessions.
 - **Easy Setup:** Interactive CLI configuration for your Gemini API key.
 
 ## Prerequisites
@@ -53,10 +53,21 @@ umd convert photo.png
 umd convert /path/to/document.pdf
 ```
 
-### Convert a Directory
+### Convert a Directory (Sequential)
 
 ```bash
 umd convert /path/to/directory
+```
+
+
+### Batch Convert a Directory in Parallel
+
+Scan and convert all supported files concurrently:
+
+```bash
+umd orchestrate convert /path/to/directory
+umd orch convert /path/to/directory --concurrency 5
+umd orch convert /path/to/directory --dry-run
 ```
 
 ### Scan a Directory
@@ -68,15 +79,6 @@ umd orchestrate scan /path/to/directory
 umd orch scan /path/to/directory --pending-only
 ```
 
-### Batch Convert in Parallel
-
-Scan and convert all supported files concurrently:
-
-```bash
-umd orchestrate convert /path/to/directory
-umd orch convert /path/to/directory --concurrency 5
-umd orch convert /path/to/directory --dry-run
-```
 
 ### Start the Web UI
 
