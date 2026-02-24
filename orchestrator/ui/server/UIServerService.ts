@@ -68,6 +68,7 @@ export class UIServerService {
     openBrowserOnStart: boolean;
     frontendDevUrl?: string;
   };
+  private dataLocation?: string;
   private eventEmitter: EventEmitter;
   private context: RouteContext;
   private connections: Set<import('net').Socket> = new Set();
@@ -81,19 +82,26 @@ export class UIServerService {
       openBrowserOnStart: uiConfig?.openBrowserOnStart ?? false,
       frontendDevUrl: frontendDevUrl ? frontendDevUrl.replace(/\/+$/, '') : undefined,
     };
+    this.dataLocation = dataLocation;
 
     this.eventEmitter = new EventEmitter();
     this.eventEmitter.setMaxListeners(100); // Allow many SSE clients
 
-    // Initialize services
-    const exclusionService = new ExclusionService(dataLocation);
-    const scanCache = new ScanCacheService(dataLocation);
+    this.context = this.createContext();
+    this.app = this.createApp();
+  }
+
+  /**
+   * Create fresh service context (re-reads config from disk)
+   */
+  private createContext(): RouteContext {
+    const exclusionService = new ExclusionService(this.dataLocation);
+    const scanCache = new ScanCacheService(this.dataLocation);
     const fileDiscovery = new FileDiscoveryService();
     const conversionState = new ConversionStateService();
-    // Pass the shared conversionState to processManager to ensure consistent state
     const processManager = new ProcessManagerService(conversionState);
 
-    this.context = {
+    return {
       fileDiscovery,
       conversionState,
       processManager,
@@ -101,25 +109,31 @@ export class UIServerService {
       scanCache,
       eventEmitter: this.eventEmitter,
     };
+  }
 
-    this.app = express();
-    this.setupMiddleware();
-    this.setupRoutes();
-    this.setupErrorHandling();
+  /**
+   * Create fresh Express app with middleware, routes, and error handling
+   */
+  private createApp(): Express {
+    const app = express();
+    this.setupMiddleware(app);
+    this.setupRoutes(app);
+    this.setupErrorHandling(app);
+    return app;
   }
 
   /**
    * Setup Express middleware
    */
-  private setupMiddleware(): void {
+  private setupMiddleware(app: Express): void {
     // JSON body parser
-    this.app.use(express.json());
+    app.use(express.json());
 
     // URL-encoded body parser
-    this.app.use(express.urlencoded({ extended: true }));
+    app.use(express.urlencoded({ extended: true }));
 
     // CORS for development
-    this.app.use((_req: Request, res: Response, next: NextFunction) => {
+    app.use((_req: Request, res: Response, next: NextFunction) => {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -127,7 +141,7 @@ export class UIServerService {
     });
 
     // Request logging
-    this.app.use((req: Request, _res: Response, next: NextFunction) => {
+    app.use((req: Request, _res: Response, next: NextFunction) => {
       logger.debug(`${req.method} ${req.path}`);
       next();
     });
@@ -136,28 +150,24 @@ export class UIServerService {
   /**
    * Setup API routes
    */
-  private setupRoutes(): void {
+  private setupRoutes(app: Express): void {
     // API routes
-    this.app.use('/api/scan', createScanRoutes(this.context));
-    this.app.use('/api/convert', createConvertRoutes(this.context));
-    this.app.use('/api/exclusions', createExclusionRoutes(this.context));
-    this.app.use('/api/events', createEventsRoutes(this.context));
-    this.app.use('/api/browse', createBrowseRoutes());
-    this.app.use('/api/preview', createPreviewRoutes());
-    this.app.use('/api/config', createConfigRoutes());
+    app.use('/api/scan', createScanRoutes(this.context));
+    app.use('/api/convert', createConvertRoutes(this.context));
+    app.use('/api/exclusions', createExclusionRoutes(this.context));
+    app.use('/api/events', createEventsRoutes(this.context));
+    app.use('/api/browse', createBrowseRoutes());
+    app.use('/api/preview', createPreviewRoutes());
+    app.use('/api/config', createConfigRoutes());
 
-    // Restart endpoint
-    this.app.post('/api/restart', (_req: Request, res: Response) => {
+    // Restart endpoint — stops the server, rebuilds services, starts again
+    app.post('/api/restart', (_req: Request, res: Response) => {
       res.json({ success: true, message: 'Server restarting...' });
-      // Delay to let response flush, then exit so the process manager restarts us
-      setTimeout(() => {
-        logger.info('Server restart requested via API');
-        process.exit(0);
-      }, 500);
+      setTimeout(() => this.restart(), 500);
     });
 
     // Health check
-    this.app.get('/api/health', (_req: Request, res: Response) => {
+    app.get('/api/health', (_req: Request, res: Response) => {
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -166,7 +176,7 @@ export class UIServerService {
     });
 
     // Skills status - check if Claude Code skills are available
-    this.app.get('/api/skills/status', (_req: Request, res: Response) => {
+    app.get('/api/skills/status', (_req: Request, res: Response) => {
       try {
         const skillsInfo = SkillsService.getSkillsInfo();
         res.json({
@@ -185,7 +195,7 @@ export class UIServerService {
       const frontendDevUrl = this.config.frontendDevUrl;
 
       // During local development, serve the React app from Vite instead of built static assets.
-      this.app.get('*', (req: Request, res: Response, next: NextFunction) => {
+      app.get('*', (req: Request, res: Response, next: NextFunction) => {
         if (req.path.startsWith('/api')) {
           next();
           return;
@@ -217,10 +227,10 @@ export class UIServerService {
       'client',
       'dist'
     );
-    this.app.use(express.static(clientDistPath));
+    app.use(express.static(clientDistPath));
 
     // SPA fallback - serve index.html for any non-API routes
-    this.app.get('*', (req: Request, res: Response) => {
+    app.get('*', (req: Request, res: Response) => {
       if (!req.path.startsWith('/api')) {
         const indexPath = path.join(clientDistPath, 'index.html');
         res.sendFile(indexPath, (err) => {
@@ -251,14 +261,14 @@ export class UIServerService {
   /**
    * Setup error handling
    */
-  private setupErrorHandling(): void {
+  private setupErrorHandling(app: Express): void {
     // 404 handler for API routes
-    this.app.use('/api/*', (_req: Request, res: Response) => {
+    app.use('/api/*', (_req: Request, res: Response) => {
       res.status(404).json({ error: 'Endpoint not found' });
     });
 
     // Global error handler
-    this.app.use(
+    app.use(
       (err: Error, _req: Request, res: Response, _next: NextFunction) => {
         logger.error(`Server error: ${err.message}`);
         res.status(500).json({
@@ -350,6 +360,19 @@ export class UIServerService {
         resolve();
       }
     });
+  }
+
+  /**
+   * Restart the server in-process: stop, rebuild services + Express app, start again.
+   * Re-reads config from disk so updated settings take effect.
+   */
+  async restart(): Promise<void> {
+    logger.info('Server restart requested — stopping...');
+    await this.stop();
+    this.context = this.createContext();
+    this.app = this.createApp();
+    await this.start();
+    logger.success('Server restarted successfully');
   }
 
   /**
