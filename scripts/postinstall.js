@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const REQUIRED_SKILLS = ['convert-to-markdown', 'open-prose'];
+const REQUIRED_SKILLS = ['convert-to-markdown'];
 
 /**
  * Copy a directory recursively

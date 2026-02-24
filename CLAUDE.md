@@ -80,13 +80,8 @@ scripts/
 └── postinstall.js                  # Copies .claude/skills to ~/.claude/skills
 
 .claude/skills/
-├── convert-to-markdown/            # Claude Code skill for file conversion
-│   ├── SKILL.md
-│   └── convert-to-markdown.prose
-└── open-prose/                     # OpenProse language runtime skill
-    ├── SKILL.md
-    ├── prose.md
-    └── docs.md
+└── convert-to-markdown/            # Claude Code skill for file conversion
+    └── SKILL.md
 ```
 
 ## Key Patterns
