@@ -15,7 +15,6 @@ export class SkillsService {
   private static readonly SKILLS_DIR_NAME = '.claude/skills';
   private static readonly REQUIRED_SKILLS = [
     'convert-to-markdown',
-    'open-prose',
   ];
 
   /**
