@@ -26,7 +26,7 @@ export function createBrowseRoutes(): Router {
         '-Sta',
         '-NoProfile',
         '-Command',
-        'Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = "Select a directory to scan"; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }',
+        'Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $f = New-Object System.Windows.Forms.Form; $f.TopMost = $true; $f.ShowInTaskbar = $false; $f.Opacity = 0; $f.Size = New-Object System.Drawing.Size(0,0); $f.WindowState = [System.Windows.Forms.FormWindowState]::Minimized; $f.Show(); $f.WindowState = [System.Windows.Forms.FormWindowState]::Normal; $f.Activate(); $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = "Select a directory to scan"; $d.ShowNewFolderButton = $true; if ($d.ShowDialog($f) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }',
       ];
     } else {
       // Linux - try zenity, fall back to kdialog
