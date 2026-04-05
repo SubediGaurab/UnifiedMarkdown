@@ -1,7 +1,10 @@
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { logger } from '../../utils/logger.js';
+import { stripMarkdownCodeBlock } from '../../utils/textUtils.js';
 import { ConfigService } from '../ConfigService.js';
 import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 export interface IGeminiOCRService {
   extractText(
@@ -15,10 +18,8 @@ export class GeminiSingleFileOCRService implements IGeminiOCRService {
   private genAI: GoogleGenAI;
 
   constructor() {
-    const apiKey = ConfigService.getApiKey();
-    this.genAI = new GoogleGenAI({
-      apiKey: apiKey,
-    });
+    const apiKey = ConfigService.getGeminiApiKey();
+    this.genAI = new GoogleGenAI({ apiKey: apiKey || 'dummy-key' });
   }
 
   async extractText(
@@ -39,10 +40,27 @@ export class GeminiSingleFileOCRService implements IGeminiOCRService {
         logger.debug(
           `File is larger than 100KB, uploading via Files API: ${filePath}`
         );
-        uploadedFile = await this.genAI.files.upload({
-          file: filePath,
-          config: { mimeType: mimeType },
-        });
+        // Gemini SDK can't handle non-ASCII characters in file paths —
+        // copy to a temp file with a safe name for the upload.
+        const hasNonAscii = /[^\x00-\x7F]/.test(filePath);
+        let uploadPath = filePath;
+        let tempPath: string | null = null;
+        if (hasNonAscii) {
+          const ext = path.extname(filePath);
+          tempPath = path.join(os.tmpdir(), `umd-upload-${Date.now()}${ext}`);
+          fs.copyFileSync(filePath, tempPath);
+          uploadPath = tempPath;
+        }
+        try {
+          uploadedFile = await this.genAI.files.upload({
+            file: uploadPath,
+            config: { mimeType: mimeType },
+          });
+        } finally {
+          if (tempPath) {
+            try { fs.unlinkSync(tempPath); } catch {}
+          }
+        }
 
         contents = [
           {
@@ -64,7 +82,7 @@ export class GeminiSingleFileOCRService implements IGeminiOCRService {
         ];
       }
 
-      const model = ConfigService.getOcrModel();
+      const model = ConfigService.getGeminiOcrModel();
       logger.debug(`Using Gemini model for OCR: ${model}`);
 
       try {
@@ -104,7 +122,7 @@ Convert the attached file to Markdown using your best judgment to reflect the or
           throw new Error('Gemini returned an empty response.');
         }
 
-        return response.text;
+        return stripMarkdownCodeBlock(response.text || '');
       } finally {
         if (uploadedFile) {
           logger.debug(`Cleaning up uploaded file: ${uploadedFile.name}`);

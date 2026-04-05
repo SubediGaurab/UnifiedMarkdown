@@ -43,6 +43,8 @@ export interface BatchConvertOptions {
   skipConverted?: boolean;
   /** Use Claude Code with convert-to-markdown skill instead of standard UMD conversion */
   useClaudeCode?: boolean;
+  /** Use OpenAI compatible local provider */
+  useOpenAI?: boolean;
 }
 
 interface UmdCommand {
@@ -140,7 +142,7 @@ export class ProcessManagerService {
   /**
    * Convert a single file by spawning a umd process
    */
-  async convertFile(file: DiscoveredFile): Promise<ConversionResult> {
+  async convertFile(file: DiscoveredFile, useOpenAI: boolean = false): Promise<ConversionResult> {
     const startTime = Date.now();
 
     // Check file size limit
@@ -161,6 +163,9 @@ export class ProcessManagerService {
     return new Promise((resolve) => {
       logger.info(`Starting conversion: ${file.path}`);
       const commandArgs = [...this.umdCommand.argsPrefix, 'convert', file.path];
+      if (useOpenAI) {
+        commandArgs.push('--use-openai');
+      }
 
       const process = spawn(this.umdCommand.command, commandArgs, {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -391,6 +396,7 @@ export class ProcessManagerService {
       onProgress,
       skipConverted = true,
       useClaudeCode = false,
+      useOpenAI = false,
     } = options;
 
     // Filter out already converted files if requested
@@ -438,7 +444,7 @@ export class ProcessManagerService {
       // Use Claude Code or standard UMD conversion based on option
       const result = useClaudeCode
         ? await this.convertFileWithClaudeCode(file, claudeCodeWorkingDir!)
-        : await this.convertFile(file);
+        : await this.convertFile(file, useOpenAI);
       results.push(result);
 
       const status: ConversionStatus = result.success ? 'completed' : 'failed';

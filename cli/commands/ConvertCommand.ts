@@ -6,10 +6,11 @@ export function registerConvertCommand(program: Command) {
   program
     .command('convert <inputPath>')
     .description('Convert an image, pdf, or directory to markdown')
-    .action(async (inputPath) => {
+    .option('--use-openai', 'Use local OpenAI compatible provider for processing images')
+    .action(async (inputPath, options) => {
       try {
         const absolutePath = path.resolve(process.cwd(), inputPath);
-        const service = OCRServiceFactory.getService(absolutePath);
+        const service = OCRServiceFactory.getService(absolutePath, options.useOpenai);
         await service.extractText(absolutePath);
         console.log(`Successfully processed ${inputPath}`);
       } catch (error) {

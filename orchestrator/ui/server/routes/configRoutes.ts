@@ -2,85 +2,85 @@ import { Router, Request, Response } from 'express';
 import { ConfigService } from '../../../../core/services/ConfigService.js';
 import { logger } from '../../../../core/utils/logger.js';
 
-/**
- * Editable config fields (subset of UmdConfig that lives in config.json)
- */
 interface EditableConfig {
-  apiKey?: string;
-  ocrModel?: string;
-  textModel?: string;
+  geminiApiKey?: string;
+  geminiOcrModel?: string;
+  geminiTextModel?: string;
+
+  openaiEndpoint?: string;
+  openaiApiKey?: string;
+  openaiOcrModel?: string;
+  openaiTextModel?: string;
 }
 
-/**
- * Create config routes
- */
 export function createConfigRoutes(): Router {
   const router = Router();
 
-  /**
-   * GET /api/config
-   * Get current configuration (masks API key)
-   */
   router.get('/', (_req: Request, res: Response) => {
     try {
       const config = ConfigService.readConfig();
       res.json({
-        apiKey: config.apiKey ? '••••' + config.apiKey.slice(-4) : '',
-        hasApiKey: !!config.apiKey,
-        ocrModel: config.ocrModel || 'gemini-3.1-pro-preview',
-        textModel: config.textModel || 'gemini-3-flash-preview',
+        geminiApiKey: config.geminiApiKey ? '••••' + config.geminiApiKey.slice(-4) : '',
+        hasApiKey: !!config.geminiApiKey,
+        geminiOcrModel: config.geminiOcrModel || 'gemini-3.1-pro-preview',
+        geminiTextModel: config.geminiTextModel || 'gemini-3-flash-preview',
+        
+        openaiEndpoint: config.openaiEndpoint || '',
+        openaiApiKey: config.openaiApiKey ? '••••' + config.openaiApiKey.slice(-4) : '',
+        hasOpenaiApiKey: !!config.openaiApiKey,
+        openaiOcrModel: config.openaiOcrModel || 'gpt-4o',
+        openaiTextModel: config.openaiTextModel || 'gpt-4o-mini',
+
         configPath: ConfigService.getConfigPath(),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to read config';
-      logger.error(`Config read failed: ${message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error(`Failed to read config: ${message}`);
       res.status(500).json({ error: message });
     }
   });
 
-  /**
-   * GET /api/config/apikey
-   * Get the unmasked API key (for show/hide toggle)
-   */
   router.get('/apikey', (_req: Request, res: Response) => {
-    try {
-      const config = ConfigService.readConfig();
-      res.json({ apiKey: config.apiKey || '' });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to read config';
-      logger.error(`Config read failed: ${message}`);
-      res.status(500).json({ error: message });
-    }
+    res.json({ hasApiKey: ConfigService.hasGeminiApiKey() });
   });
 
-  /**
-   * PUT /api/config
-   * Update configuration fields
-   */
   router.put('/', (req: Request, res: Response) => {
     try {
       const body = req.body as EditableConfig;
       const config = ConfigService.readConfig();
 
-      if (body.apiKey !== undefined) {
-        config.apiKey = body.apiKey;
-      }
-      if (body.ocrModel !== undefined) {
-        config.ocrModel = body.ocrModel;
-      }
-      if (body.textModel !== undefined) {
-        config.textModel = body.textModel;
-      }
+      if (body.geminiApiKey !== undefined) config.geminiApiKey = body.geminiApiKey;
+      if (body.geminiOcrModel !== undefined) config.geminiOcrModel = body.geminiOcrModel;
+      if (body.geminiTextModel !== undefined) config.geminiTextModel = body.geminiTextModel;
+
+      if (body.openaiEndpoint !== undefined) config.openaiEndpoint = body.openaiEndpoint;
+      if (body.openaiApiKey !== undefined) config.openaiApiKey = body.openaiApiKey;
+      if (body.openaiOcrModel !== undefined) config.openaiOcrModel = body.openaiOcrModel;
+      if (body.openaiTextModel !== undefined) config.openaiTextModel = body.openaiTextModel;
 
       ConfigService.writeConfig(config);
+      logger.info('Configuration updated via API');
 
+      // Return refreshed config so the client doesn't need a second GET
       res.json({
         success: true,
-        message: 'Configuration updated',
+        message: 'Configuration saved',
+        config: {
+          geminiApiKey: config.geminiApiKey ? '••••' + config.geminiApiKey.slice(-4) : '',
+          hasApiKey: !!config.geminiApiKey,
+          geminiOcrModel: config.geminiOcrModel || 'gemini-3.1-pro-preview',
+          geminiTextModel: config.geminiTextModel || 'gemini-3-flash-preview',
+          openaiEndpoint: config.openaiEndpoint || '',
+          openaiApiKey: config.openaiApiKey ? '••••' + config.openaiApiKey.slice(-4) : '',
+          hasOpenaiApiKey: !!config.openaiApiKey,
+          openaiOcrModel: config.openaiOcrModel || 'gpt-4o',
+          openaiTextModel: config.openaiTextModel || 'gpt-4o-mini',
+          configPath: ConfigService.getConfigPath(),
+        },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save config';
-      logger.error(`Config write failed: ${message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error(`Failed to update config: ${message}`);
       res.status(500).json({ error: message });
     }
   });

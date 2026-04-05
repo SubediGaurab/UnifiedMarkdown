@@ -9,6 +9,12 @@ import { OCRServiceFactory } from './OCRServiceFactory.js';
  * OCR service for directories - recursively processes all files
  */
 export class DirectoryOCRService implements IOCRService {
+  private useOpenAI: boolean;
+
+  constructor(useOpenAI: boolean = false) {
+    this.useOpenAI = useOpenAI;
+  }
+
   async extractText(dirPath: string): Promise<void> {
     try {
       // Validate directory exists
@@ -88,7 +94,7 @@ export class DirectoryOCRService implements IOCRService {
    */
   private async processFile(filePath: string): Promise<void> {
     try {
-      const service = OCRServiceFactory.getService(filePath);
+      const service = OCRServiceFactory.getService(filePath, this.useOpenAI);
       await service.extractText(filePath);
     } catch (error) {
       // Log the error but continue processing other files

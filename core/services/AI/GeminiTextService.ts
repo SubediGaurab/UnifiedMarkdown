@@ -16,10 +16,8 @@ export class GeminiTextService {
   private genAI: GoogleGenAI;
 
   constructor() {
-    const apiKey = ConfigService.getApiKey();
-    this.genAI = new GoogleGenAI({
-      apiKey: apiKey,
-    });
+    const apiKey = ConfigService.getGeminiApiKey();
+    this.genAI = new GoogleGenAI({ apiKey: apiKey || 'dummy-key' });
   }
 
   /**
@@ -27,10 +25,8 @@ export class GeminiTextService {
    */
   async generateSummary(text: string): Promise<string> {
     try {
-      const model = ConfigService.getTextModel();
-      logger.debug(
-        `Generating document summary with Gemini model: ${model}...`
-      );
+      const model = ConfigService.getGeminiTextModel();
+      logger.debug(`Generating document summary with model: ${model}...`);
 
       const response = await this.genAI.models.generateContent({
         model: model,
@@ -62,8 +58,8 @@ export class GeminiTextService {
     documentSummary: string
   ): Promise<string> {
     try {
-      const model = ConfigService.getOcrModel();
-      logger.debug(`Generating image caption with Gemini model: ${model}...`);
+      const model = ConfigService.getGeminiOcrModel();
+      logger.debug(`Generating image caption with model: ${model}...`);
 
       const base64Data = imageBuffer.toString('base64');
 
@@ -107,10 +103,8 @@ Return ONLY the caption text, nothing else.`,
     documentSummary: string
   ): Promise<string> {
     try {
-      const model = ConfigService.getTextModel();
-      logger.debug(
-        `Generating chart description with Gemini model: ${model}...`
-      );
+      const model = ConfigService.getGeminiTextModel();
+      logger.debug(`Generating chart description with model: ${model}...`);
 
       const response = await this.genAI.models.generateContent({
         model: model,
@@ -155,10 +149,8 @@ Return ONLY a concise caption describing the chart (e.g., "A clustered bar chart
     images: SlideImage[]
   ): Promise<string> {
     try {
-      const model = ConfigService.getOcrModel();
-      logger.debug(
-        `Generating content for slide ${slideNumber} with Gemini model: ${model}...`
-      );
+      const model = ConfigService.getGeminiOcrModel();
+      logger.debug(`Generating content for slide ${slideNumber} with model: ${model}...`);
 
       // Build content parts: text prompt + images
       const parts: any[] = [];

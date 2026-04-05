@@ -128,10 +128,17 @@ export async function getSkillsStatus(): Promise<SkillsStatus> {
 
 // Config API
 export interface AppConfig {
-  apiKey: string;
+  geminiApiKey: string;
   hasApiKey: boolean;
-  ocrModel: string;
-  textModel: string;
+  geminiOcrModel: string;
+  geminiTextModel: string;
+
+  openaiEndpoint?: string;
+  openaiApiKey?: string;
+  hasOpenaiApiKey?: boolean;
+  openaiOcrModel: string;
+  openaiTextModel: string;
+
   configPath: string;
 }
 
@@ -143,7 +150,7 @@ export async function getApiKey(): Promise<{ apiKey: string }> {
   return fetchJson('/config/apikey');
 }
 
-export async function updateConfig(config: { apiKey?: string; ocrModel?: string; textModel?: string }): Promise<{ success: boolean; message: string }> {
+export async function updateConfig(config: Partial<AppConfig>): Promise<{ success: boolean; message: string; config: AppConfig }> {
   return fetchJson('/config', {
     method: 'PUT',
     body: JSON.stringify(config),
@@ -205,6 +212,8 @@ export interface ConvertOptions {
   skipConverted?: boolean;
   /** Use Claude Code with convert-to-markdown skill instead of standard UMD conversion */
   useClaudeCode?: boolean;
+  /** Use OpenAI compatible local provider */
+  useOpenAI?: boolean;
 }
 
 export async function startConversion(options: ConvertOptions): Promise<{ message: string; jobId: string; totalFiles: number }> {

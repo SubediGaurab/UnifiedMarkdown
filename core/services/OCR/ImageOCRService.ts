@@ -2,26 +2,29 @@ import { logger } from '../../utils/logger.js';
 import { getMimeTypeFromExtension } from '../../utils/mimeTypes.js';
 
 import { IOCRService } from '../../interfaces/IOCRService.js';
-import { GeminiSingleFileOCRService } from '../AI/GeminiSingleFileOCRService.js';
+import { GeminiSingleFileOCRService, IGeminiOCRService } from '../AI/GeminiSingleFileOCRService.js';
+import { OpenAISingleFileOCRService, IAIOCRService } from '../AI/OpenAISingleFileOCRService.js';
 import { MarkdownSaverService } from '../MarkdownSaverService.js';
 
 /**
  * OCR service implementation using Gemini AI for Images
  */
 export class ImageOCRService implements IOCRService {
-  private geminiService: GeminiSingleFileOCRService;
+  private baseService: IGeminiOCRService | IAIOCRService;
   private markdownSaver: MarkdownSaverService;
 
   /**
    * Creates a new ImageOCRService instance
-   * @param geminiService - Optional Gemini service instance for dependency injection (defaults to new instance)
-   * @param markdownSaver - Optional markdown saver instance for dependency injection (defaults to new instance)
+   * @param useOpenAI - Whether to use local OpenAI provider instead of Gemini
+   * @param aiService - Optional AI service instance for dependency injection
+   * @param markdownSaver - Optional markdown saver instance for dependency injection
    */
   public constructor(
-    geminiService?: GeminiSingleFileOCRService,
+    useOpenAI: boolean = false,
+    aiService?: IGeminiOCRService | IAIOCRService,
     markdownSaver?: MarkdownSaverService
   ) {
-    this.geminiService = geminiService ?? new GeminiSingleFileOCRService();
+    this.baseService = aiService ?? (useOpenAI ? new OpenAISingleFileOCRService() : new GeminiSingleFileOCRService());
     this.markdownSaver = markdownSaver ?? new MarkdownSaverService();
   }
 
@@ -34,10 +37,10 @@ export class ImageOCRService implements IOCRService {
 
       const mimeType = getMimeTypeFromExtension(imagePath);
 
-      // Extract text using Gemini
+      // Extract text using AI Service
       let text: string;
       try {
-        text = await this.geminiService.extractText(imagePath, mimeType);
+        text = await this.baseService.extractText(imagePath, mimeType);
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
@@ -45,7 +48,7 @@ export class ImageOCRService implements IOCRService {
           `Failed to extract text from image ${imagePath}: ${errorMessage}`
         );
         throw new Error(
-          `Gemini API extraction failed for ${imagePath}: ${errorMessage}`
+          `AI API extraction failed for ${imagePath}: ${errorMessage}`
         );
       }
 

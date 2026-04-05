@@ -1,12 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { logger } from '../utils/logger.js';
+
 import { UmdConfig } from '../interfaces/IConfig.js';
 
-/**
- * Custom error class for configuration-related errors
- */
 export class ConfigError extends Error {
   constructor(
     message: string,
@@ -20,7 +17,6 @@ export class ConfigError extends Error {
   ) {
     super(message);
     this.name = 'ConfigError';
-    // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ConfigError);
     }
@@ -34,277 +30,151 @@ export class ConfigService {
     'config.json'
   );
 
-  /**
-   * Get the Gemini API key from config file or environment variable
-   * Priority: config file -> environment variable -> throw ConfigError
-   * @returns The Gemini API key
-   * @throws {ConfigError} If no API key is found in config file or environment
-   */
-  static getApiKey(): string {
-    // Try config file first
-    const config = this.readConfig();
-    if (config.apiKey) {
-      logger.debug('Using API key from config file');
-      return config.apiKey;
-    }
+  /** Legacy field migration map: old key -> new key */
+  private static readonly MIGRATIONS: Record<string, keyof UmdConfig> = {
+    apiKey: 'geminiApiKey',
+    aiEndpoint: 'openaiEndpoint',
+    ocrModel: 'geminiOcrModel',
+    textModel: 'geminiTextModel',
+  };
 
-    // Fallback to environment variable
-    const envApiKey = process.env.GEMINI_API_KEY;
-    if (envApiKey) {
-      logger.debug('Using API key from GEMINI_API_KEY environment variable');
-      return envApiKey;
-    }
-
-    // No API key found
-    throw new ConfigError(
-      'No Gemini API key found. Please run "umd setup" to configure your API key, ' +
-        'or set the GEMINI_API_KEY environment variable.',
-      'API_KEY_NOT_FOUND'
-    );
-  }
-
-  /**
-   * Read the config file, returns empty config if file doesn't exist
-   * @returns The parsed config object, or empty object if file doesn't exist
-   * @throws {ConfigError} If config file is malformed or cannot be read due to permissions
-   */
   static readConfig(): UmdConfig {
     try {
       if (!fs.existsSync(ConfigService.CONFIG_FILE)) {
-        logger.debug('Config file does not exist, returning empty config');
         return {};
       }
 
       const content = fs.readFileSync(ConfigService.CONFIG_FILE, 'utf-8');
-
-      // Try to parse the JSON content
-      let parsedConfig: unknown;
+      let parsedConfig: any;
       try {
         parsedConfig = JSON.parse(content);
-      } catch (parseError) {
-        logger.error(
-          `Config file at ${ConfigService.CONFIG_FILE} contains invalid JSON`
-        );
+      } catch {
         throw new ConfigError(
-          `Config file is malformed (invalid JSON). Please check ${ConfigService.CONFIG_FILE} or delete it to reset. ` +
-            `Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+          `Invalid JSON in config file: ${ConfigService.CONFIG_FILE}`,
           'INVALID_CONFIG'
         );
       }
 
-      // Validate that the parsed content is an object
-      if (typeof parsedConfig !== 'object' || parsedConfig === null) {
-        throw new ConfigError(
-          `Config file must contain a JSON object. Found: ${typeof parsedConfig}`,
-          'INVALID_CONFIG'
-        );
+      // Migrate legacy flat config keys
+      let modified = false;
+      for (const [oldKey, newKey] of Object.entries(this.MIGRATIONS)) {
+        if (parsedConfig[oldKey]) {
+          parsedConfig[newKey] = parsedConfig[oldKey];
+          delete parsedConfig[oldKey];
+          modified = true;
+        }
       }
 
-      logger.debug('Successfully read config file');
+      if (modified) {
+        this.writeConfig(parsedConfig);
+      }
+
       return parsedConfig as UmdConfig;
     } catch (error) {
-      // Re-throw ConfigError instances
-      if (error instanceof ConfigError) {
-        throw error;
-      }
-
-      // Handle filesystem errors
-      if (error instanceof Error) {
-        if ('code' in error && error.code === 'EACCES') {
-          throw new ConfigError(
-            `Permission denied reading config file at ${ConfigService.CONFIG_FILE}. ` +
-              `Please check file permissions.`,
-            'PERMISSION_DENIED'
-          );
-        }
-        throw new ConfigError(
-          `Failed to read config file at ${ConfigService.CONFIG_FILE}: ${error.message}`,
-          'CONFIG_READ_ERROR'
-        );
-      }
-
-      // Fallback for unknown error types
-      throw new ConfigError(
-        `Failed to read config file: ${String(error)}`,
-        'CONFIG_READ_ERROR'
-      );
+      if (error instanceof ConfigError) throw error;
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new ConfigError(`Failed to read config: ${detail}`, 'CONFIG_READ_ERROR');
     }
   }
 
-  /**
-   * Write the config file, creates directory if needed
-   * @param config - The configuration object to save
-   * @throws {ConfigError} If config cannot be written or directory cannot be created
-   */
   static writeConfig(config: UmdConfig): void {
-    // Validate input
     if (!config || typeof config !== 'object') {
-      throw new ConfigError(
-        'Invalid config object provided to writeConfig(). Config must be a non-null object.',
-        'INVALID_INPUT'
-      );
+      throw new ConfigError('Config must be a non-null object', 'INVALID_INPUT');
     }
-
     try {
-      // Create config directory if it doesn't exist
       if (!fs.existsSync(ConfigService.CONFIG_DIR)) {
-        try {
-          fs.mkdirSync(ConfigService.CONFIG_DIR, { recursive: true });
-          logger.debug(`Created config directory: ${ConfigService.CONFIG_DIR}`);
-        } catch (mkdirError) {
-          if (
-            mkdirError instanceof Error &&
-            'code' in mkdirError &&
-            mkdirError.code === 'EACCES'
-          ) {
-            throw new ConfigError(
-              `Permission denied creating config directory at ${ConfigService.CONFIG_DIR}. ` +
-                `Please check parent directory permissions.`,
-              'PERMISSION_DENIED'
-            );
-          }
-          throw mkdirError; // Will be caught by outer try-catch
-        }
+        fs.mkdirSync(ConfigService.CONFIG_DIR, { recursive: true });
       }
-
-      // Write config file
-      try {
-        fs.writeFileSync(
-          ConfigService.CONFIG_FILE,
-          JSON.stringify(config, null, 2),
-          'utf-8'
-        );
-        logger.debug(`Config saved to ${ConfigService.CONFIG_FILE}`);
-      } catch (writeError) {
-        if (
-          writeError instanceof Error &&
-          'code' in writeError &&
-          writeError.code === 'EACCES'
-        ) {
-          throw new ConfigError(
-            `Permission denied writing config file to ${ConfigService.CONFIG_FILE}. ` +
-              `Please check file and directory permissions.`,
-            'PERMISSION_DENIED'
-          );
-        }
-        throw writeError; // Will be caught by outer try-catch
-      }
+      fs.writeFileSync(ConfigService.CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
     } catch (error) {
-      // Re-throw ConfigError instances
-      if (error instanceof ConfigError) {
-        throw error;
-      }
-
-      // Handle other errors
-      if (error instanceof Error) {
-        throw new ConfigError(
-          `Failed to write config file to ${ConfigService.CONFIG_FILE}: ${error.message}`,
-          'CONFIG_WRITE_ERROR'
-        );
-      }
-
-      // Fallback for unknown error types
-      throw new ConfigError(
-        `Failed to write config file: ${String(error)}`,
-        'CONFIG_WRITE_ERROR'
-      );
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new ConfigError(`Failed to write config: ${detail}`, 'CONFIG_WRITE_ERROR');
     }
   }
 
-  /**
-   * Save API key to config file
-   * @param apiKey - The Gemini API key to save
-   * @throws {ConfigError} If API key is empty or config cannot be written
-   */
-  static saveApiKey(apiKey: string): void {
-    // Validate input
-    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
-      throw new ConfigError(
-        'API key cannot be empty. Please provide a valid Gemini API key.',
-        'INVALID_INPUT'
-      );
-    }
+  // --- Generic helpers to reduce getter/setter boilerplate ---
 
+  private static getConfigValue(
+    key: keyof UmdConfig,
+    envVars: string[],
+    defaultValue?: string
+  ): string | undefined {
     const config = this.readConfig();
-    config.apiKey = apiKey.trim();
-    this.writeConfig(config);
-    logger.debug('API key saved successfully');
-  }
+    const stored = config[key] as string | undefined;
+    if (stored) return stored;
 
-  /**
-   * Check if API key is configured (either in config file or environment)
-   */
-  static hasApiKey(): boolean {
-    try {
-      this.getApiKey();
-      return true;
-    } catch {
-      return false;
+    for (const envVar of envVars) {
+      const val = process.env[envVar];
+      if (val) return val;
     }
+
+    return defaultValue;
   }
 
-  /**
-   * Get the config file path for display purposes
-   */
+  private static saveConfigValue(key: keyof UmdConfig, value: string | undefined): void {
+    const config = this.readConfig();
+    if (value?.trim()) {
+      (config as any)[key] = value.trim();
+    } else {
+      delete (config as any)[key];
+    }
+    this.writeConfig(config);
+  }
+
+  // --- Gemini ---
+
+  static getGeminiApiKey(): string {
+    const val = this.getConfigValue('geminiApiKey', ['GEMINI_API_KEY']);
+    if (!val) throw new ConfigError('No Gemini API key found. Run `umd setup` or set GEMINI_API_KEY.', 'API_KEY_NOT_FOUND');
+    return val;
+  }
+
+  static saveGeminiApiKey(apiKey: string): void { this.saveConfigValue('geminiApiKey', apiKey); }
+
+  static hasGeminiApiKey(): boolean {
+    return !!this.getConfigValue('geminiApiKey', ['GEMINI_API_KEY']);
+  }
+
+  static getGeminiOcrModel(): string {
+    return this.getConfigValue('geminiOcrModel', [], 'gemini-3.1-pro-preview')!;
+  }
+
+  static saveGeminiOcrModel(model: string): void { this.saveConfigValue('geminiOcrModel', model); }
+
+  static getGeminiTextModel(): string {
+    return this.getConfigValue('geminiTextModel', [], 'gemini-3-flash-preview')!;
+  }
+
+  static saveGeminiTextModel(model: string): void { this.saveConfigValue('geminiTextModel', model); }
+
+  // --- OpenAI ---
+
+  static getOpenaiEndpoint(): string | undefined {
+    return this.getConfigValue('openaiEndpoint', ['AI_ENDPOINT', 'OPENAI_BASE_URL']);
+  }
+
+  static saveOpenaiEndpoint(endpoint: string | undefined): void { this.saveConfigValue('openaiEndpoint', endpoint); }
+
+  static getOpenaiApiKey(): string | undefined {
+    return this.getConfigValue('openaiApiKey', ['OPENAI_API_KEY']);
+  }
+
+  static saveOpenaiApiKey(apiKey: string | undefined): void { this.saveConfigValue('openaiApiKey', apiKey); }
+
+  static getOpenaiOcrModel(): string {
+    return this.getConfigValue('openaiOcrModel', [], 'gpt-4o')!;
+  }
+
+  static saveOpenaiOcrModel(model: string): void { this.saveConfigValue('openaiOcrModel', model); }
+
+  static getOpenaiTextModel(): string {
+    return this.getConfigValue('openaiTextModel', [], 'gpt-4o-mini')!;
+  }
+
+  static saveOpenaiTextModel(model: string): void { this.saveConfigValue('openaiTextModel', model); }
+
+  // Utility
   static getConfigPath(): string {
     return ConfigService.CONFIG_FILE;
-  }
-
-  /**
-   * Get the Gemini model for OCR operations (images, PDFs, PPTX)
-   * @returns The configured OCR model or default 'gemini-3.1-pro-preview'
-   */
-  static getOcrModel(): string {
-    const config = this.readConfig();
-    return config.ocrModel || 'gemini-3.1-pro-preview';
-  }
-
-  /**
-   * Get the Gemini model for text operations (summaries, captions)
-   * @returns The configured text model or default 'gemini-3-flash-preview'
-   */
-  static getTextModel(): string {
-    const config = this.readConfig();
-    return config.textModel || 'gemini-3-flash-preview';
-  }
-
-  /**
-   * Save OCR model preference to config file
-   * @param model - The Gemini model name to use for OCR operations
-   * @throws {ConfigError} If model name is empty or config cannot be written
-   */
-  static saveOcrModel(model: string): void {
-    // Validate input
-    if (!model || typeof model !== 'string' || model.trim().length === 0) {
-      throw new ConfigError(
-        'Model name cannot be empty. Please provide a valid Gemini model name.',
-        'INVALID_INPUT'
-      );
-    }
-
-    const config = this.readConfig();
-    config.ocrModel = model.trim();
-    this.writeConfig(config);
-    logger.debug(`OCR model saved: ${model.trim()}`);
-  }
-
-  /**
-   * Save text model preference to config file
-   * @param model - The Gemini model name to use for text operations
-   * @throws {ConfigError} If model name is empty or config cannot be written
-   */
-  static saveTextModel(model: string): void {
-    // Validate input
-    if (!model || typeof model !== 'string' || model.trim().length === 0) {
-      throw new ConfigError(
-        'Model name cannot be empty. Please provide a valid Gemini model name.',
-        'INVALID_INPUT'
-      );
-    }
-
-    const config = this.readConfig();
-    config.textModel = model.trim();
-    this.writeConfig(config);
-    logger.debug(`Text model saved: ${model.trim()}`);
   }
 }

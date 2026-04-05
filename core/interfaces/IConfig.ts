@@ -47,16 +47,19 @@ export interface ExclusionRule {
 }
 
 export interface UmdConfig {
+  geminiApiKey?: string;
+  geminiOcrModel?: string;
+  geminiTextModel?: string;
+
+  openaiEndpoint?: string;
+  openaiApiKey?: string;
+  openaiOcrModel?: string;
+  openaiTextModel?: string;
+
+  /** Legacy fields for migration */
   apiKey?: string;
-  /**
-   * Gemini model to use for OCR operations (images, PDFs, PPTX slides)
-   * @default 'gemini-3.1-pro-preview'
-   */
+  aiEndpoint?: string;
   ocrModel?: string;
-  /**
-   * Gemini model to use for text operations (summaries, captions)
-   * @default 'gemini-3-flash-preview'
-   */
   textModel?: string;
 
   /**

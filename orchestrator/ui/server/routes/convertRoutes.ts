@@ -15,6 +15,8 @@ interface ConvertRequest {
   skipConverted?: boolean;
   /** Use Claude Code with convert-to-markdown skill instead of standard UMD conversion */
   useClaudeCode?: boolean;
+  /** Use OpenAI compatible local provider */
+  useOpenAI?: boolean;
 }
 
 /**
@@ -106,6 +108,7 @@ export function createConvertRoutes(context: RouteContext): Router {
       const concurrency = body.concurrency ?? 10;
       const skipConverted = body.skipConverted ?? true;
       const useClaudeCode = body.useClaudeCode ?? false;
+      const useOpenAI = body.useOpenAI ?? false;
 
       // Don't await - let it run in background
       context.processManager
@@ -113,6 +116,7 @@ export function createConvertRoutes(context: RouteContext): Router {
           concurrency,
           skipConverted,
           useClaudeCode,
+          useOpenAI,
           onStart: (file) => {
             context.eventEmitter.emit('server-event', {
               type: 'conversion-progress',

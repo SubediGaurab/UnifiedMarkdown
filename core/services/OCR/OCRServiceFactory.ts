@@ -15,10 +15,11 @@ export class OCRServiceFactory {
   /**
    * Get the appropriate OCR service based on file type
    * @param inputPath - Path to the file or directory to process
+   * @param useOpenAI - Whether to use local OpenAI provider for images
    * @returns An instance of the appropriate OCR service
    * @throws Error if input path is invalid, file doesn't exist, or file type is unsupported
    */
-  public static getService(inputPath: string): IOCRService {
+  public static getService(inputPath: string, useOpenAI: boolean = false): IOCRService {
     // Validate input path is provided
     if (!inputPath || inputPath.trim() === '') {
       throw new Error('Input path is required and cannot be empty');
@@ -42,7 +43,7 @@ export class OCRServiceFactory {
 
     // Handle directory input
     if (stats.isDirectory()) {
-      return new DirectoryOCRService();
+      return new DirectoryOCRService(useOpenAI);
     }
 
     // Extract and validate file extension
@@ -56,7 +57,7 @@ export class OCRServiceFactory {
 
     // Check for supported file types
     if (IMAGE_EXTENSIONS.includes(ext as any)) {
-      return new ImageOCRService();
+      return new ImageOCRService(useOpenAI);
     }
 
     if (ext === 'pdf') {

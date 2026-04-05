@@ -29,6 +29,7 @@ export function registerBatchConvertCommand(program: Command): void {
     .option('-d, --max-depth <depth>', 'Maximum recursion depth', (val) => parseInt(val, 10))
     .option('-e, --extensions <exts>', 'Comma-separated list of extensions to include')
     .option('--dry-run', 'Show what would be converted without actually converting')
+    .option('--use-openai', 'Use local OpenAI compatible provider for processing images')
     .action(async (directory, options) => {
       try {
         const absolutePath = path.resolve(process.cwd(), directory);
@@ -107,6 +108,7 @@ export function registerBatchConvertCommand(program: Command): void {
           {
             concurrency: options.concurrency,
             skipConverted: !options.includeConverted,
+            useOpenAI: options.useOpenai,
             onProgress: (done, total) => {
               progressSpinner.text = `Converting... ${done}/${total}`;
             },

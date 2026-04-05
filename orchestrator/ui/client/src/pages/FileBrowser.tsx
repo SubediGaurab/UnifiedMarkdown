@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { triggerScan, startConversion, getSkillsStatus, browseDirectory, type ScanApiResponse, type DiscoveredFile, type SkillsStatus } from '../api/client';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { triggerScan, startConversion, getSkillsStatus, browseDirectory, getConfig, type AppConfig, type ScanApiResponse, type DiscoveredFile, type SkillsStatus } from '../api/client';
 import FileTree from '../components/FileTree';
 import { QuickExcludeModal } from '../components/ExclusionManager';
 import { IndeterminateProgress } from '../components/ProgressBar';
@@ -19,14 +19,56 @@ export default function FileBrowser() {
   const [concurrency, setConcurrency] = useState(10);
   const [skipConverted, setSkipConverted] = useState(true);
   const [useClaudeCode, setUseClaudeCode] = useState(false);
+  const [useOpenAI, setUseOpenAI] = useState(false);
   const [skillsStatus, setSkillsStatus] = useState<SkillsStatus | null>(null);
+  const [config, setConfig] = useState<AppConfig | null>(null);
 
-  // Check skills status on mount
+  // Check skills status and config on mount
   useEffect(() => {
     getSkillsStatus()
       .then(setSkillsStatus)
       .catch(() => setSkillsStatus(null));
+      
+    getConfig()
+      .then(setConfig)
+      .catch(() => setConfig(null));
   }, []);
+
+  const fileMap = useMemo(
+    () => new Map((scanResult?.files || []).map(f => [f.path, f])),
+    [scanResult]
+  );
+
+  const openAIValidation = useMemo(() => {
+    if (!config?.openaiEndpoint) {
+      return { canUse: false, reason: "OpenAI endpoint is not configured in settings." };
+    }
+    if (!scanResult || selectedFiles.size === 0) {
+      return { canUse: true, reason: "Use configured local OpenAI compatible endpoint" };
+    }
+    for (const filePath of selectedFiles) {
+      const file = fileMap.get(filePath);
+      if (file) {
+        const ext = file.extension.toLowerCase();
+        if (['pdf', 'docx', 'pptx', 'ppt'].includes(ext)) {
+          return { canUse: false, reason: `File '${file.name}' is a ${ext.toUpperCase()}, which is not supported by local OpenAI endpoint.` };
+        }
+        if (file.size > 20 * 1024 * 1024) {
+          return { canUse: false, reason: `File '${file.name}' size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds 20MB limit for local endpoint.` };
+        }
+      }
+    }
+    return { canUse: true, reason: "Use configured local OpenAI compatible endpoint" };
+  }, [selectedFiles, fileMap, config?.openaiEndpoint]);
+
+  const canUseOpenAI = openAIValidation.canUse;
+
+  // Reset useOpenAI when it becomes unavailable
+  useEffect(() => {
+    if (!canUseOpenAI && useOpenAI) {
+      setUseOpenAI(false);
+    }
+  }, [canUseOpenAI, useOpenAI]);
 
   const handleBrowse = async () => {
     try {
@@ -80,6 +122,7 @@ export default function FileBrowser() {
         concurrency,
         skipConverted,
         useClaudeCode,
+        useOpenAI,
       });
       // Show success message
       alert(`Conversion started! Job ID: ${result.jobId}\n${result.totalFiles} files queued.`);
@@ -273,6 +316,34 @@ export default function FileBrowser() {
                     Use Claude Code
                   </span>
                 </label>
+
+                <div
+                  title={
+                    useClaudeCode
+                      ? "Cannot use OpenAI with Claude Code"
+                      : openAIValidation.reason
+                  }
+                  style={{ display: 'inline-block', cursor: canUseOpenAI && !useClaudeCode ? 'pointer' : 'not-allowed' }}
+                >
+                  <label
+                    className="flex items-center gap-2"
+                    style={{
+                      cursor: canUseOpenAI && !useClaudeCode ? 'pointer' : 'not-allowed',
+                      opacity: canUseOpenAI && !useClaudeCode ? 1 : 0.5,
+                      pointerEvents: canUseOpenAI && !useClaudeCode ? 'auto' : 'none'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={useOpenAI}
+                      onChange={(e) => setUseOpenAI(e.target.checked)}
+                      disabled={!canUseOpenAI || useClaudeCode}
+                    />
+                    <span className="text-sm" style={{ color: useOpenAI ? 'var(--primary)' : 'inherit', fontWeight: useOpenAI ? 600 : 400 }}>
+                      Use OpenAI Compatible
+                    </span>
+                  </label>
+                </div>
 
                 <button
                   className="btn btn-success"
