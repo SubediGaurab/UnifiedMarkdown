@@ -136,13 +136,13 @@ export class ConfigService {
   }
 
   static getGeminiOcrModel(): string {
-    return this.getConfigValue('geminiOcrModel', [], 'gemini-3.1-pro-preview')!;
+    return this.getConfigValue('geminiOcrModel', [], 'gemini-3.5-flash')!;
   }
 
   static saveGeminiOcrModel(model: string): void { this.saveConfigValue('geminiOcrModel', model); }
 
   static getGeminiTextModel(): string {
-    return this.getConfigValue('geminiTextModel', [], 'gemini-3-flash-preview')!;
+    return this.getConfigValue('geminiTextModel', [], 'gemini-3.1-flash-lite')!;
   }
 
   static saveGeminiTextModel(model: string): void { this.saveConfigValue('geminiTextModel', model); }
