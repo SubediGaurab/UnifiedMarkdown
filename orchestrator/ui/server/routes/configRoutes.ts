@@ -22,8 +22,8 @@ export function createConfigRoutes(): Router {
       res.json({
         geminiApiKey: config.geminiApiKey ? '••••' + config.geminiApiKey.slice(-4) : '',
         hasApiKey: !!config.geminiApiKey,
-        geminiOcrModel: config.geminiOcrModel || 'gemini-3.5-flash',
-        geminiTextModel: config.geminiTextModel || 'gemini-3.1-flash-lite',
+        geminiOcrModel: config.geminiOcrModel || 'gemini-3.7-flash',
+        geminiTextModel: config.geminiTextModel || 'gemini-3.5-flash-lite',
         
         openaiEndpoint: config.openaiEndpoint || '',
         openaiApiKey: config.openaiApiKey ? '••••' + config.openaiApiKey.slice(-4) : '',
@@ -68,8 +68,8 @@ export function createConfigRoutes(): Router {
         config: {
           geminiApiKey: config.geminiApiKey ? '••••' + config.geminiApiKey.slice(-4) : '',
           hasApiKey: !!config.geminiApiKey,
-          geminiOcrModel: config.geminiOcrModel || 'gemini-3.5-flash',
-          geminiTextModel: config.geminiTextModel || 'gemini-3.1-flash-lite',
+          geminiOcrModel: config.geminiOcrModel || 'gemini-3.7-flash',
+          geminiTextModel: config.geminiTextModel || 'gemini-3.5-flash-lite',
           openaiEndpoint: config.openaiEndpoint || '',
           openaiApiKey: config.openaiApiKey ? '••••' + config.openaiApiKey.slice(-4) : '',
           hasOpenaiApiKey: !!config.openaiApiKey,
