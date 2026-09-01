@@ -38,6 +38,10 @@ function validateAbsolutePath(inputPath: string): string | null {
   return resolved;
 }
 
+function escapeAppleScript(str: string): string {
+  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 /**
  * Build AppleScript to open a NEW tab in the Chrome preview window.
  * Always creates a new tab (never reuses existing tabs).
@@ -48,12 +52,13 @@ function buildAppleScript(
   url: string,
   storedWindowId: number | null,
 ): string {
+  const safeUrl = escapeAppleScript(url);
   const reuseBlock =
     storedWindowId !== null
       ? `
     try
       set w to window id ${storedWindowId}
-      tell w to make new tab with properties {URL:"${url}"}
+      tell w to make new tab with properties {URL:"${safeUrl}"}
       set index of w to 1
       set windowFound to true
     on error
@@ -68,7 +73,7 @@ ${reuseBlock}
   if not windowFound then
     make new window
     set w to window 1
-    set URL of active tab of w to "${url}"
+    set URL of active tab of w to "${safeUrl}"
     return id of w
   end if
 end tell`;
@@ -238,7 +243,8 @@ export function createPreviewRoutes(): Router {
       return;
     }
 
-    const host = req.headers.host ?? 'localhost:3000';
+    const rawHost = req.headers.host ?? 'localhost:3000';
+    const host = /^[a-zA-Z0-9.-]+(:\d+)?$/.test(rawHost) ? rawHost : 'localhost:3000';
     const baseUrl = `http://${host}`;
     const originalUrl = `${baseUrl}/api/preview/file?path=${encodeURIComponent(validOriginalPath)}`;
     const validMarkdownPath = resolveMarkdownPath(validOriginalPath, markdownPath);
