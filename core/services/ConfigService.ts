@@ -136,7 +136,7 @@ export class ConfigService {
   }
 
   static getGeminiOcrModel(): string {
-    return this.getConfigValue('geminiOcrModel', [], 'gemini-3.7-flash')!;
+    return this.getConfigValue('geminiOcrModel', [], 'gemini-3.8-flash')!;
   }
 
   static saveGeminiOcrModel(model: string): void { this.saveConfigValue('geminiOcrModel', model); }
