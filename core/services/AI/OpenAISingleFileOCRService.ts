@@ -17,10 +17,10 @@ export class OpenAISingleFileOCRService implements IAIOCRService {
 
   constructor() {
     const apiKey = ConfigService.getOpenaiApiKey();
-    const endpoint = ConfigService.getOpenaiEndpoint();
+    const baseURL = ConfigService.getOpenaiBaseUrl();
     this.openai = new OpenAI({
-      apiKey: apiKey || 'dummy-key',
-      baseURL: endpoint || undefined,
+      apiKey,
+      baseURL,
     });
   }
 

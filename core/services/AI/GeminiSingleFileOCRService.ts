@@ -19,7 +19,7 @@ export class GeminiSingleFileOCRService implements IGeminiOCRService {
 
   constructor() {
     const apiKey = ConfigService.getGeminiApiKey();
-    this.genAI = new GoogleGenAI({ apiKey: apiKey || 'dummy-key' });
+    this.genAI = new GoogleGenAI({ apiKey });
   }
 
   async extractText(

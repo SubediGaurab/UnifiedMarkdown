@@ -10,7 +10,7 @@ cli/
 ├── bin/                            # (reserved)
 └── commands/
     ├── ConvertCommand.ts           # umd convert <path>
-    └── SetupCommand.ts             # umd setup (API key config)
+    └── SetupCommand.ts             # umd setup (writes ~/.umd/.env)
 
 core/
 ├── constants/
@@ -29,7 +29,7 @@ core/
 │   │   ├── DocxConversionService.ts # DOCX → HTML (mammoth) → Markdown (turndown) with AI image captions and chart descriptions
 │   │   ├── PptxOCRService.ts       # PPTX → PDF (LibreOffice headless) → Markdown
 │   │   └── DirectoryOCRService.ts  # Recursive directory conversion
-│   ├── ConfigService.ts            # API key + model config (~/.umd/config.json)
+│   ├── ConfigService.ts            # Reads ~/.umd/.env, the only source of keys and models (no defaults)
 │   └── MarkdownSaverService.ts     # Output with timestamped backup
 ├── types/
 │   └── turndown-plugin-gfm.d.ts    # Type declaration for turndown GFM plugin

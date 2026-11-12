@@ -1,5 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { ConfigService } from '../../../../core/services/ConfigService.js';
+import {
+  ConfigService,
+  ENV_KEYS,
+  GEMINI_REQUIRED,
+  OPENAI_REQUIRED,
+} from '../../../../core/services/ConfigService.js';
 import { logger } from '../../../../core/utils/logger.js';
 
 interface EditableConfig {
@@ -13,26 +18,37 @@ interface EditableConfig {
   openaiTextModel?: string;
 }
 
+const mask = (value: string | undefined) =>
+  value ? '••••' + value.slice(-4) : '';
+
+/** Current settings from ~/.umd/.env. Unset values are empty; nothing is filled in. */
+function publicConfig() {
+  const env = ConfigService.readEnv();
+  const get = (key: string) => env[key]?.trim() || '';
+  return {
+    geminiApiKey: mask(get(ENV_KEYS.geminiApiKey)),
+    hasApiKey: !!get(ENV_KEYS.geminiApiKey),
+    geminiOcrModel: get(ENV_KEYS.geminiOcrModel),
+    geminiTextModel: get(ENV_KEYS.geminiTextModel),
+
+    openaiEndpoint: get(ENV_KEYS.openaiBaseUrl),
+    openaiApiKey: mask(get(ENV_KEYS.openaiApiKey)),
+    hasOpenaiApiKey: !!get(ENV_KEYS.openaiApiKey),
+    openaiOcrModel: get(ENV_KEYS.openaiOcrModel),
+    openaiTextModel: get(ENV_KEYS.openaiTextModel),
+
+    missingGemini: ConfigService.missing(GEMINI_REQUIRED),
+    missingOpenai: ConfigService.missing(OPENAI_REQUIRED),
+    configPath: ConfigService.getEnvPath(),
+  };
+}
+
 export function createConfigRoutes(): Router {
   const router = Router();
 
   router.get('/', (_req: Request, res: Response) => {
     try {
-      const config = ConfigService.readConfig();
-      res.json({
-        geminiApiKey: config.geminiApiKey ? '••••' + config.geminiApiKey.slice(-4) : '',
-        hasApiKey: !!config.geminiApiKey,
-        geminiOcrModel: config.geminiOcrModel || 'gemini-3.8-flash',
-        geminiTextModel: config.geminiTextModel || 'gemini-3.5-flash-lite',
-        
-        openaiEndpoint: config.openaiEndpoint || '',
-        openaiApiKey: config.openaiApiKey ? '••••' + config.openaiApiKey.slice(-4) : '',
-        hasOpenaiApiKey: !!config.openaiApiKey,
-        openaiOcrModel: config.openaiOcrModel || 'gpt-4o',
-        openaiTextModel: config.openaiTextModel || 'gpt-4o-mini',
-
-        configPath: ConfigService.getConfigPath(),
-      });
+      res.json(publicConfig());
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error(`Failed to read config: ${message}`);
@@ -47,36 +63,30 @@ export function createConfigRoutes(): Router {
   router.put('/', (req: Request, res: Response) => {
     try {
       const body = req.body as EditableConfig;
-      const config = ConfigService.readConfig();
+      const updates: Record<string, string | undefined> = {};
 
-      if (body.geminiApiKey !== undefined) config.geminiApiKey = body.geminiApiKey;
-      if (body.geminiOcrModel !== undefined) config.geminiOcrModel = body.geminiOcrModel;
-      if (body.geminiTextModel !== undefined) config.geminiTextModel = body.geminiTextModel;
+      // API keys are only replaced when a new one is sent; an empty key field means "keep".
+      if (body.geminiApiKey) updates[ENV_KEYS.geminiApiKey] = body.geminiApiKey;
+      if (body.geminiOcrModel !== undefined)
+        updates[ENV_KEYS.geminiOcrModel] = body.geminiOcrModel;
+      if (body.geminiTextModel !== undefined)
+        updates[ENV_KEYS.geminiTextModel] = body.geminiTextModel;
 
-      if (body.openaiEndpoint !== undefined) config.openaiEndpoint = body.openaiEndpoint;
-      if (body.openaiApiKey !== undefined) config.openaiApiKey = body.openaiApiKey;
-      if (body.openaiOcrModel !== undefined) config.openaiOcrModel = body.openaiOcrModel;
-      if (body.openaiTextModel !== undefined) config.openaiTextModel = body.openaiTextModel;
+      if (body.openaiEndpoint !== undefined)
+        updates[ENV_KEYS.openaiBaseUrl] = body.openaiEndpoint;
+      if (body.openaiApiKey) updates[ENV_KEYS.openaiApiKey] = body.openaiApiKey;
+      if (body.openaiOcrModel !== undefined)
+        updates[ENV_KEYS.openaiOcrModel] = body.openaiOcrModel;
+      if (body.openaiTextModel !== undefined)
+        updates[ENV_KEYS.openaiTextModel] = body.openaiTextModel;
 
-      ConfigService.writeConfig(config);
-      logger.info('Configuration updated via API');
+      ConfigService.writeEnv(updates);
+      logger.info('Settings updated via API');
 
-      // Return refreshed config so the client doesn't need a second GET
       res.json({
         success: true,
-        message: 'Configuration saved',
-        config: {
-          geminiApiKey: config.geminiApiKey ? '••••' + config.geminiApiKey.slice(-4) : '',
-          hasApiKey: !!config.geminiApiKey,
-          geminiOcrModel: config.geminiOcrModel || 'gemini-3.8-flash',
-          geminiTextModel: config.geminiTextModel || 'gemini-3.5-flash-lite',
-          openaiEndpoint: config.openaiEndpoint || '',
-          openaiApiKey: config.openaiApiKey ? '••••' + config.openaiApiKey.slice(-4) : '',
-          hasOpenaiApiKey: !!config.openaiApiKey,
-          openaiOcrModel: config.openaiOcrModel || 'gpt-4o',
-          openaiTextModel: config.openaiTextModel || 'gpt-4o-mini',
-          configPath: ConfigService.getConfigPath(),
-        },
+        message: 'Settings saved',
+        config: publicConfig(),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

@@ -9,7 +9,7 @@ AI-powered CLI and web UI to convert images, PDFs, DOCX, and PPTX documents to M
 - **Web UI:** Built-in web dashboard to browse directories, manage conversions, configure exclusions, and monitor jobs in real time via SSE.
 - **Directory Exclusions:** Respects `.umdignore` files (gitignore-style patterns) and custom exclusion rules managed through the UI.
 - **Claude Code Skills:** Bundled skills let you alternatively convert files using natural language in Claude Code sessions.
-- **Easy Setup:** Interactive CLI configuration for your Gemini API key.
+- **One settings file:** API keys and models are read only from `~/.umd/.env`.
 
 ## Prerequisites
 
@@ -28,19 +28,30 @@ npm install -g unified-markdown
 
 ## Setup
 
-Run the interactive setup to configure your Gemini API key:
+Every setting lives in one file, `~/.umd/.env`. It is the only source of truth: there are no built-in default models, no provider fallbacks, and shell environment variables are not read. If a setting a command needs is missing, `umd` stops with an error that names it.
+
+Create it interactively:
 
 ```bash
 umd setup
 ```
 
-Alternatively, set the environment variable directly:
+Or write it yourself (see `.env.example` in the repository):
 
 ```bash
-export GEMINI_API_KEY="your-api-key-here"
+# ~/.umd/.env
+GEMINI_API_KEY=your-api-key-here
+GEMINI_OCR_MODEL=your-ocr-model      # images, PDFs, slides
+GEMINI_TEXT_MODEL=your-text-model    # summaries and captions
+
+# Optional, only for --use-openai (any OpenAI compatible server)
+# OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+# OPENAI_API_KEY=any-value-if-your-server-needs-none
+# OPENAI_OCR_MODEL=
+# OPENAI_TEXT_MODEL=
 ```
 
-Configuration is stored at `~/.umd/config.json`.
+The web UI Settings page reads and writes the same file.
 
 ## Usage
 
@@ -87,13 +98,14 @@ Launch a local web dashboard to visually manage conversions:
 ```bash
 umd orchestrate ui
 umd orch ui --port 8080 --open
+umd orch ui --host 100.x.y.z     # bind to one address, e.g. a Tailscale IP
 ```
 
 The UI provides:
 - **Dashboard** with live stats and activity feed
 - **File Browser** with directory scanning, file tree with selection, and native OS folder picker
 - **Jobs** page with real-time progress tracking and log viewer
-- **Settings** for managing exclusion rules and viewing configuration
+- **Settings** for managing exclusion rules and editing `~/.umd/.env`
 
 ### Check Job Status
 

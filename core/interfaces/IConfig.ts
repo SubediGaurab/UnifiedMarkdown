@@ -47,21 +47,6 @@ export interface ExclusionRule {
 }
 
 export interface UmdConfig {
-  geminiApiKey?: string;
-  geminiOcrModel?: string;
-  geminiTextModel?: string;
-
-  openaiEndpoint?: string;
-  openaiApiKey?: string;
-  openaiOcrModel?: string;
-  openaiTextModel?: string;
-
-  /** Legacy fields for migration */
-  apiKey?: string;
-  aiEndpoint?: string;
-  ocrModel?: string;
-  textModel?: string;
-
   /**
    * Data storage location for all UMD files
    * @default '~/.umd'

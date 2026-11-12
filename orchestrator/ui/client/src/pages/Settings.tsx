@@ -95,8 +95,11 @@ export default function Settings() {
       <div className="panel">
         <h3 className="section-title">Gemini Options</h3>
         <p className="text-sm text-muted mb-4">
-          Default configuration for document and text operations.
+          Used for every conversion. There are no built-in models: set both below.
         </p>
+        {config?.missingGemini && config.missingGemini.length > 0 && (
+          <div className="alert alert-error">Not set: {config.missingGemini.join(', ')}</div>
+        )}
         <div className="form-group">
           <label className="form-label">API Key</label>
           <input
@@ -131,7 +134,7 @@ export default function Settings() {
       <div className="panel mt-4">
         <h3 className="section-title">OpenAI Compatible Options</h3>
         <p className="text-sm text-muted mb-4">
-          Optional fallback for local or alternative image processing.
+          Optional. Used only when a conversion asks for the OpenAI compatible provider.
         </p>
         <div className="form-group">
           <label className="form-label">Endpoint URL</label>
@@ -182,7 +185,7 @@ export default function Settings() {
       </div>
 
       <p className="text-sm text-muted mt-4">
-        Config stored at {config?.configPath}
+        All settings are stored in {config?.configPath}
       </p>
     </div>
   );

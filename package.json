@@ -1,6 +1,6 @@
 {
   "name": "unified-markdown",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "AI-powered CLI and web UI to convert images, PDFs, DOCX, and PPTX to Markdown using Google Gemini",
   "type": "module",
   "main": "dist/cli/cli.js",

@@ -5,6 +5,7 @@ import { FileDiscoveryService } from '../../services/FileDiscoveryService.js';
 import { ConversionStateService } from '../../services/ConversionStateService.js';
 import { ProcessManagerService } from '../../services/ProcessManagerService.js';
 import { logger } from '../../../core/utils/logger.js';
+import { ConfigService } from '../../../core/services/ConfigService.js';
 
 /**
  * Generate a unique job ID
@@ -32,6 +33,9 @@ export function registerBatchConvertCommand(program: Command): void {
     .option('--use-openai', 'Use local OpenAI compatible provider for processing images')
     .action(async (directory, options) => {
       try {
+        if (!options.dryRun) {
+          ConfigService.assertProviderConfigured(!!options.useOpenai);
+        }
         const absolutePath = path.resolve(process.cwd(), directory);
 
         // First, scan for files

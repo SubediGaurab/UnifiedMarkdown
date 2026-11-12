@@ -5,6 +5,11 @@ import { randomUUID } from 'crypto';
 import { RouteContext } from '../UIServerService.js';
 import { DiscoveredFile } from '../../../services/FileDiscoveryService.js';
 import { logger } from '../../../../core/utils/logger.js';
+import {
+  ConfigService,
+  GEMINI_REQUIRED,
+  OPENAI_REQUIRED,
+} from '../../../../core/services/ConfigService.js';
 
 /**
  * Request body for POST /api/convert
@@ -37,6 +42,17 @@ export function createConvertRoutes(context: RouteContext): Router {
         return res.status(400).json({
           error: 'files is required and must be a non-empty array of file paths',
         });
+      }
+
+      if (!(body.useClaudeCode ?? false)) {
+        const missing = ConfigService.missing(
+          (body.useOpenAI ?? false) ? OPENAI_REQUIRED : GEMINI_REQUIRED
+        );
+        if (missing.length > 0) {
+          return res.status(400).json({
+            error: `Missing required setting${missing.length > 1 ? 's' : ''} ${missing.join(', ')} in ${ConfigService.getEnvPath()}. Set ${missing.length > 1 ? 'them' : 'it'} in Settings.`,
+          });
+        }
       }
 
       // Validate and build DiscoveredFile objects

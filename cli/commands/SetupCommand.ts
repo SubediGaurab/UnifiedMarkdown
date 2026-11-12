@@ -1,194 +1,152 @@
 import { Command } from 'commander';
 import { input, confirm } from '@inquirer/prompts';
 import { GoogleGenAI } from '@google/genai';
-import { ConfigService } from '../../core/services/ConfigService.js';
+import {
+  ConfigService,
+  ENV_KEYS,
+  EnvKey,
+} from '../../core/services/ConfigService.js';
 import { logger } from '../../core/utils/logger.js';
 import { maskApiKey } from '../../core/utils/textUtils.js';
 import ora from 'ora';
 
+const notEmpty = (label: string) => (value: string) =>
+  value && value.trim().length > 0 ? true : `${label} cannot be empty`;
+
+/** Ask for a value. The current value (if any) is offered; nothing else is. */
+async function askValue(key: EnvKey, message: string): Promise<string> {
+  const current = ConfigService.getOptional(key);
+  const value = await input({
+    message: `${message} (${key}):`,
+    default: current,
+    validate: notEmpty(key),
+  });
+  return value.trim();
+}
+
 export function registerSetupCommand(program: Command) {
   program
     .command('setup')
-    .description('Configure UnifiedMarkdown (Gemini and OpenAI compatible settings)')
+    .description(
+      `Write UnifiedMarkdown settings to ${ConfigService.getEnvPath()}`
+    )
     .action(async () => {
       try {
         console.log('\n🚀 Welcome to UnifiedMarkdown Setup!\n');
+        logger.info(`All settings live in ${ConfigService.getEnvPath()}.`);
         logger.info(
-          'This tool uses Google Gemini AI to convert images and PDFs to Markdown.'
+          'There are no built-in default models: you choose every model here.'
         );
         logger.info(
-          'You can get a free API key from: https://aistudio.google.com/apikey\n'
+          'Get a Gemini API key from: https://aistudio.google.com/apikey\n'
         );
 
-        // --- Gemini Configuration ---
-        console.log('── Gemini Configuration ──\n');
+        // --- Gemini ---
+        console.log('── Gemini ──\n');
 
-        // Check if API key already exists
-        let skipGemini = false;
-        if (ConfigService.hasGeminiApiKey()) {
-          const currentConfig = ConfigService.readConfig();
-          if (currentConfig.geminiApiKey) {
-              logger.info(`Current API key: ${maskApiKey(currentConfig.geminiApiKey)}`);
-          } else {
-            logger.info(
-              'API key is set via GEMINI_API_KEY environment variable'
-            );
-          }
-
-          const shouldUpdate = await confirm({
-            message: 'Do you want to update your Gemini API key?',
+        let apiKey = ConfigService.getOptional(ENV_KEYS.geminiApiKey);
+        let updateKey = !apiKey;
+        if (apiKey) {
+          logger.info(`Current API key: ${maskApiKey(apiKey)}`);
+          updateKey = await confirm({
+            message: 'Update the Gemini API key?',
             default: false,
           });
-
-          if (!shouldUpdate) {
-            skipGemini = true;
-          }
+        }
+        if (updateKey) {
+          apiKey = (
+            await input({
+              message: `Gemini API key (${ENV_KEYS.geminiApiKey}):`,
+              validate: notEmpty('API key'),
+            })
+          ).trim();
         }
 
-        if (!skipGemini) {
-          // Prompt for API key
-          const apiKey = await input({
-            message: 'Enter your Gemini API key:',
-            validate: (value: string) => {
-              if (!value || value.trim().length === 0) {
-                return 'API key cannot be empty';
-              }
-              if (value.length < 20) {
-                return 'API key seems too short. Please check and try again.';
-              }
-              return true;
-            },
-          });
+        const ocrModel = await askValue(
+          ENV_KEYS.geminiOcrModel,
+          'Gemini OCR/vision model'
+        );
+        const textModel = await askValue(
+          ENV_KEYS.geminiTextModel,
+          'Gemini text model'
+        );
 
-          // Test the API key
+        if (updateKey) {
           const spinner = ora('Validating API key...').start();
           try {
-            const genAI = new GoogleGenAI({ apiKey: apiKey.trim() });
-
+            const genAI = new GoogleGenAI({ apiKey: apiKey! });
             await genAI.models.generateContent({
-              model: ConfigService.getGeminiOcrModel(),
+              model: textModel,
               contents: [{ text: 'test' }],
             });
-
-            spinner.succeed('API key validated successfully!');
+            spinner.succeed('API key validated.');
           } catch (error) {
             spinner.fail('API key validation failed');
-            const errorMessage =
-              error instanceof Error ? error.message : String(error);
             logger.error(
-              'The API key appears to be invalid. Please check and try again.',
-              error instanceof Error ? error : undefined
+              `Error details: ${error instanceof Error ? error.message : String(error)}`
             );
-            logger.error(`Error details: ${errorMessage}`);
             process.exit(1);
           }
-
-          // Save the API key
-          ConfigService.saveGeminiApiKey(apiKey.trim());
-          logger.success('Gemini API key saved.');
         }
 
-        // Gemini model configuration
-        const currentOcrModel = ConfigService.getGeminiOcrModel();
-        const currentTextModel = ConfigService.getGeminiTextModel();
-        logger.info(`Current Gemini OCR model: ${currentOcrModel}`);
-        logger.info(`Current Gemini text model: ${currentTextModel}`);
-
-        const updateModels = await confirm({
-          message: 'Do you want to change the Gemini model names?',
-          default: false,
+        ConfigService.writeEnv({
+          [ENV_KEYS.geminiApiKey]: apiKey,
+          [ENV_KEYS.geminiOcrModel]: ocrModel,
+          [ENV_KEYS.geminiTextModel]: textModel,
         });
+        logger.success('Gemini settings saved.');
 
-        if (updateModels) {
-          const ocrModel = await input({
-            message: 'Gemini OCR/Vision model:',
-            default: currentOcrModel,
-          });
-          ConfigService.saveGeminiOcrModel(ocrModel.trim());
-
-          const textModel = await input({
-            message: 'Gemini Text model:',
-            default: currentTextModel,
-          });
-          ConfigService.saveGeminiTextModel(textModel.trim());
-          logger.success('Gemini models updated.');
-        }
-
-        // --- OpenAI Compatible Configuration ---
-        console.log('\n── OpenAI Compatible Configuration (Optional) ──\n');
-        logger.info(
-          'You can optionally configure an OpenAI-compatible endpoint (e.g., LM Studio, Ollama).'
+        // --- OpenAI compatible (optional, only used with --use-openai) ---
+        console.log(
+          '\n── OpenAI compatible endpoint (optional, used only with --use-openai) ──\n'
         );
-        logger.info(
-          'This is used as an alternative provider for image conversion.\n'
-        );
-
-        const currentEndpoint = ConfigService.getOpenaiEndpoint();
-        const currentOpenaiKey = ConfigService.getOpenaiApiKey();
-        const currentOpenaiOcrModel = ConfigService.getOpenaiOcrModel();
-        const currentOpenaiTextModel = ConfigService.getOpenaiTextModel();
-
-        if (currentEndpoint) {
-          logger.info(`Current endpoint: ${currentEndpoint}`);
-          if (currentOpenaiKey) {
-            logger.info(`Current API key: ${maskApiKey(currentOpenaiKey)}`);
-          }
-          logger.info(`Current OCR model: ${currentOpenaiOcrModel}`);
-          logger.info(`Current text model: ${currentOpenaiTextModel}`);
-        }
-
+        const hasOpenai = !!ConfigService.getOptional(ENV_KEYS.openaiBaseUrl);
         const configureOpenAI = await confirm({
-          message: currentEndpoint
-            ? 'Do you want to update your OpenAI compatible settings?'
-            : 'Do you want to configure an OpenAI compatible endpoint?',
+          message: hasOpenai
+            ? 'Update the OpenAI compatible settings?'
+            : 'Configure an OpenAI compatible endpoint (e.g., LM Studio, Ollama)?',
           default: false,
         });
 
         if (configureOpenAI) {
-          const endpoint = await input({
-            message: 'Endpoint URL (e.g., http://127.0.0.1:1234/v1):',
-            default: currentEndpoint || '',
-            validate: (value: string) => {
-              if (!value || value.trim().length === 0) {
-                return 'Endpoint URL cannot be empty';
-              }
-              return true;
-            },
+          const baseUrl = await askValue(
+            ENV_KEYS.openaiBaseUrl,
+            'Endpoint URL, e.g. http://127.0.0.1:1234/v1'
+          );
+          const currentKey = ConfigService.getOptional(ENV_KEYS.openaiApiKey);
+          if (currentKey)
+            logger.info(`Current API key: ${maskApiKey(currentKey)}`);
+          const openaiKey = (
+            await input({
+              message: `API key (${ENV_KEYS.openaiApiKey}; any value if your server needs none):`,
+              default: currentKey,
+              validate: notEmpty(ENV_KEYS.openaiApiKey),
+            })
+          ).trim();
+          const openaiOcr = await askValue(
+            ENV_KEYS.openaiOcrModel,
+            'OCR/vision model'
+          );
+          const openaiText = await askValue(
+            ENV_KEYS.openaiTextModel,
+            'Text model'
+          );
+          ConfigService.writeEnv({
+            [ENV_KEYS.openaiBaseUrl]: baseUrl,
+            [ENV_KEYS.openaiApiKey]: openaiKey,
+            [ENV_KEYS.openaiOcrModel]: openaiOcr,
+            [ENV_KEYS.openaiTextModel]: openaiText,
           });
-          ConfigService.saveOpenaiEndpoint(endpoint.trim());
-
-          const openaiKey = await input({
-            message: 'API key (leave empty if not required):',
-            default: '',
-          });
-          if (openaiKey.trim()) {
-            ConfigService.saveOpenaiApiKey(openaiKey.trim());
-          }
-
-          const ocrModel = await input({
-            message: 'OCR/Vision model:',
-            default: currentOpenaiOcrModel,
-          });
-          ConfigService.saveOpenaiOcrModel(ocrModel.trim());
-
-          const textModel = await input({
-            message: 'Text model:',
-            default: currentOpenaiTextModel,
-          });
-          ConfigService.saveOpenaiTextModel(textModel.trim());
-
           logger.success('OpenAI compatible settings saved.');
         }
 
         console.log('');
-        logger.success('Setup complete!');
-        logger.info(`Config location: ${ConfigService.getConfigPath()}`);
-        console.log('');
-        logger.info('You can now use UnifiedMarkdown with commands like:');
+        logger.success(
+          `Setup complete. Settings file: ${ConfigService.getEnvPath()}`
+        );
         console.log('  umd convert image.png');
         console.log('  umd convert document.pdf');
-        console.log('  umd convert /path/to/directory');
-        console.log('  umd convert image.png --use-openai\n');
+        console.log('  umd convert /path/to/directory\n');
       } catch (error) {
         if (
           error instanceof Error &&

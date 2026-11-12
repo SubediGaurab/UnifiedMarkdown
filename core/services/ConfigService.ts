@@ -1,18 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-
-import { UmdConfig } from '../interfaces/IConfig.js';
+import { parse as parseEnv } from 'dotenv';
 
 export class ConfigError extends Error {
   constructor(
     message: string,
     public readonly code:
-      | 'API_KEY_NOT_FOUND'
+      | 'MISSING_SETTING'
       | 'CONFIG_READ_ERROR'
       | 'CONFIG_WRITE_ERROR'
-      | 'INVALID_CONFIG'
-      | 'PERMISSION_DENIED'
       | 'INVALID_INPUT'
   ) {
     super(message);
@@ -23,158 +20,192 @@ export class ConfigError extends Error {
   }
 }
 
+/**
+ * Every setting UnifiedMarkdown reads. All of them live in one file,
+ * ~/.umd/.env, which is the only source of truth: there are no built-in
+ * default models, no provider fallbacks, and shell environment variables
+ * are not consulted.
+ */
+export const ENV_KEYS = {
+  geminiApiKey: 'GEMINI_API_KEY',
+  geminiOcrModel: 'GEMINI_OCR_MODEL',
+  geminiTextModel: 'GEMINI_TEXT_MODEL',
+  openaiBaseUrl: 'OPENAI_BASE_URL',
+  openaiApiKey: 'OPENAI_API_KEY',
+  openaiOcrModel: 'OPENAI_OCR_MODEL',
+  openaiTextModel: 'OPENAI_TEXT_MODEL',
+} as const;
+
+export type EnvKey = (typeof ENV_KEYS)[keyof typeof ENV_KEYS];
+
+/** Settings needed for the Gemini provider (the normal path). */
+export const GEMINI_REQUIRED: EnvKey[] = [
+  ENV_KEYS.geminiApiKey,
+  ENV_KEYS.geminiOcrModel,
+  ENV_KEYS.geminiTextModel,
+];
+
+/** Settings needed when --use-openai is passed. */
+export const OPENAI_REQUIRED: EnvKey[] = [
+  ENV_KEYS.openaiBaseUrl,
+  ENV_KEYS.openaiApiKey,
+  ENV_KEYS.openaiOcrModel,
+  ENV_KEYS.openaiTextModel,
+];
+
 export class ConfigService {
   private static readonly CONFIG_DIR = path.join(os.homedir(), '.umd');
-  private static readonly CONFIG_FILE = path.join(
+  private static readonly ENV_FILE = path.join(
     ConfigService.CONFIG_DIR,
-    'config.json'
+    '.env'
   );
 
-  /** Legacy field migration map: old key -> new key */
-  private static readonly MIGRATIONS: Record<string, keyof UmdConfig> = {
-    apiKey: 'geminiApiKey',
-    aiEndpoint: 'openaiEndpoint',
-    ocrModel: 'geminiOcrModel',
-    textModel: 'geminiTextModel',
-  };
+  /** Path of the single settings file. */
+  static getEnvPath(): string {
+    return ConfigService.ENV_FILE;
+  }
 
-  static readConfig(): UmdConfig {
+  /** Read and parse ~/.umd/.env. A missing file means no settings. */
+  static readEnv(): Record<string, string> {
     try {
-      if (!fs.existsSync(ConfigService.CONFIG_FILE)) {
-        return {};
-      }
-
-      const content = fs.readFileSync(ConfigService.CONFIG_FILE, 'utf-8');
-      let parsedConfig: any;
-      try {
-        parsedConfig = JSON.parse(content);
-      } catch {
-        throw new ConfigError(
-          `Invalid JSON in config file: ${ConfigService.CONFIG_FILE}`,
-          'INVALID_CONFIG'
-        );
-      }
-
-      // Migrate legacy flat config keys
-      let modified = false;
-      for (const [oldKey, newKey] of Object.entries(this.MIGRATIONS)) {
-        if (parsedConfig[oldKey]) {
-          parsedConfig[newKey] = parsedConfig[oldKey];
-          delete parsedConfig[oldKey];
-          modified = true;
-        }
-      }
-
-      if (modified) {
-        this.writeConfig(parsedConfig);
-      }
-
-      return parsedConfig as UmdConfig;
+      if (!fs.existsSync(ConfigService.ENV_FILE)) return {};
+      return parseEnv(fs.readFileSync(ConfigService.ENV_FILE));
     } catch (error) {
-      if (error instanceof ConfigError) throw error;
       const detail = error instanceof Error ? error.message : String(error);
-      throw new ConfigError(`Failed to read config: ${detail}`, 'CONFIG_READ_ERROR');
+      throw new ConfigError(
+        `Failed to read ${ConfigService.ENV_FILE}: ${detail}`,
+        'CONFIG_READ_ERROR'
+      );
     }
   }
 
-  static writeConfig(config: UmdConfig): void {
-    if (!config || typeof config !== 'object') {
-      throw new ConfigError('Config must be a non-null object', 'INVALID_INPUT');
+  static getOptional(key: EnvKey): string | undefined {
+    const value = this.readEnv()[key]?.trim();
+    return value ? value : undefined;
+  }
+
+  static getRequired(key: EnvKey): string {
+    const value = this.getOptional(key);
+    if (!value) {
+      throw new ConfigError(this.missingMessage([key]), 'MISSING_SETTING');
+    }
+    return value;
+  }
+
+  /** Names of the given settings that are not set in the .env file. */
+  static missing(keys: EnvKey[]): EnvKey[] {
+    const env = this.readEnv();
+    return keys.filter((key) => !env[key]?.trim());
+  }
+
+  /** Throw one clear error listing every missing setting. */
+  static assertSet(keys: EnvKey[]): void {
+    const missing = this.missing(keys);
+    if (missing.length > 0) {
+      throw new ConfigError(this.missingMessage(missing), 'MISSING_SETTING');
+    }
+  }
+
+  /** Check the settings a conversion needs before any work starts. */
+  static assertProviderConfigured(useOpenAI: boolean = false): void {
+    this.assertSet(useOpenAI ? OPENAI_REQUIRED : GEMINI_REQUIRED);
+  }
+
+  private static missingMessage(keys: EnvKey[]): string {
+    const names = keys.join(', ');
+    return (
+      `Missing required setting${keys.length > 1 ? 's' : ''} ${names} in ${ConfigService.ENV_FILE}. ` +
+      `UnifiedMarkdown has no default models; set ${keys.length > 1 ? 'them' : 'it'} there ` +
+      '(run `umd setup` or edit the file).'
+    );
+  }
+
+  /**
+   * Set or remove values in ~/.umd/.env, keeping every other line as is.
+   * An empty or undefined value removes the key.
+   */
+  static writeEnv(updates: Partial<Record<EnvKey, string | undefined>>): void {
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined && /[\r\n]/.test(value)) {
+        throw new ConfigError(
+          `Value for ${key} cannot contain a line break`,
+          'INVALID_INPUT'
+        );
+      }
     }
     try {
       if (!fs.existsSync(ConfigService.CONFIG_DIR)) {
-        fs.mkdirSync(ConfigService.CONFIG_DIR, { recursive: true });
+        fs.mkdirSync(ConfigService.CONFIG_DIR, {
+          recursive: true,
+          mode: 0o700,
+        });
       }
-      fs.writeFileSync(ConfigService.CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+      const lines = fs.existsSync(ConfigService.ENV_FILE)
+        ? fs.readFileSync(ConfigService.ENV_FILE, 'utf-8').split(/\r?\n/)
+        : [];
+      if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+
+      for (const [key, raw] of Object.entries(updates)) {
+        const value = raw?.trim();
+        const pattern = new RegExp(`^\\s*(export\\s+)?${key}\\s*=`);
+        const index = lines.findIndex((line) => pattern.test(line));
+        if (!value) {
+          if (index >= 0) lines.splice(index, 1);
+          continue;
+        }
+        const line = `${key}=${JSON.stringify(value)}`;
+        if (index >= 0) lines[index] = line;
+        else lines.push(line);
+      }
+
+      fs.writeFileSync(ConfigService.ENV_FILE, lines.join('\n') + '\n', {
+        encoding: 'utf-8',
+        mode: 0o600,
+      });
+      fs.chmodSync(ConfigService.ENV_FILE, 0o600);
     } catch (error) {
+      if (error instanceof ConfigError) throw error;
       const detail = error instanceof Error ? error.message : String(error);
-      throw new ConfigError(`Failed to write config: ${detail}`, 'CONFIG_WRITE_ERROR');
+      throw new ConfigError(
+        `Failed to write ${ConfigService.ENV_FILE}: ${detail}`,
+        'CONFIG_WRITE_ERROR'
+      );
     }
-  }
-
-  // --- Generic helpers to reduce getter/setter boilerplate ---
-
-  private static getConfigValue(
-    key: keyof UmdConfig,
-    envVars: string[],
-    defaultValue?: string
-  ): string | undefined {
-    const config = this.readConfig();
-    const stored = config[key] as string | undefined;
-    if (stored) return stored;
-
-    for (const envVar of envVars) {
-      const val = process.env[envVar];
-      if (val) return val;
-    }
-
-    return defaultValue;
-  }
-
-  private static saveConfigValue(key: keyof UmdConfig, value: string | undefined): void {
-    const config = this.readConfig();
-    if (value?.trim()) {
-      (config as any)[key] = value.trim();
-    } else {
-      delete (config as any)[key];
-    }
-    this.writeConfig(config);
   }
 
   // --- Gemini ---
 
   static getGeminiApiKey(): string {
-    const val = this.getConfigValue('geminiApiKey', ['GEMINI_API_KEY']);
-    if (!val) throw new ConfigError('No Gemini API key found. Run `umd setup` or set GEMINI_API_KEY.', 'API_KEY_NOT_FOUND');
-    return val;
+    return this.getRequired(ENV_KEYS.geminiApiKey);
   }
 
-  static saveGeminiApiKey(apiKey: string): void { this.saveConfigValue('geminiApiKey', apiKey); }
-
   static hasGeminiApiKey(): boolean {
-    return !!this.getConfigValue('geminiApiKey', ['GEMINI_API_KEY']);
+    return !!this.getOptional(ENV_KEYS.geminiApiKey);
   }
 
   static getGeminiOcrModel(): string {
-    return this.getConfigValue('geminiOcrModel', [], 'gemini-3.8-flash')!;
+    return this.getRequired(ENV_KEYS.geminiOcrModel);
   }
-
-  static saveGeminiOcrModel(model: string): void { this.saveConfigValue('geminiOcrModel', model); }
 
   static getGeminiTextModel(): string {
-    return this.getConfigValue('geminiTextModel', [], 'gemini-3.5-flash-lite')!;
+    return this.getRequired(ENV_KEYS.geminiTextModel);
   }
 
-  static saveGeminiTextModel(model: string): void { this.saveConfigValue('geminiTextModel', model); }
+  // --- OpenAI compatible ---
 
-  // --- OpenAI ---
-
-  static getOpenaiEndpoint(): string | undefined {
-    return this.getConfigValue('openaiEndpoint', ['AI_ENDPOINT', 'OPENAI_BASE_URL']);
+  static getOpenaiBaseUrl(): string {
+    return this.getRequired(ENV_KEYS.openaiBaseUrl);
   }
 
-  static saveOpenaiEndpoint(endpoint: string | undefined): void { this.saveConfigValue('openaiEndpoint', endpoint); }
-
-  static getOpenaiApiKey(): string | undefined {
-    return this.getConfigValue('openaiApiKey', ['OPENAI_API_KEY']);
+  static getOpenaiApiKey(): string {
+    return this.getRequired(ENV_KEYS.openaiApiKey);
   }
-
-  static saveOpenaiApiKey(apiKey: string | undefined): void { this.saveConfigValue('openaiApiKey', apiKey); }
 
   static getOpenaiOcrModel(): string {
-    return this.getConfigValue('openaiOcrModel', [], 'gpt-4o')!;
+    return this.getRequired(ENV_KEYS.openaiOcrModel);
   }
-
-  static saveOpenaiOcrModel(model: string): void { this.saveConfigValue('openaiOcrModel', model); }
 
   static getOpenaiTextModel(): string {
-    return this.getConfigValue('openaiTextModel', [], 'gpt-4o-mini')!;
-  }
-
-  static saveOpenaiTextModel(model: string): void { this.saveConfigValue('openaiTextModel', model); }
-
-  // Utility
-  static getConfigPath(): string {
-    return ConfigService.CONFIG_FILE;
+    return this.getRequired(ENV_KEYS.openaiTextModel);
   }
 }

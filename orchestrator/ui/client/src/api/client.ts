@@ -139,6 +139,11 @@ export interface AppConfig {
   openaiOcrModel: string;
   openaiTextModel: string;
 
+  /** Settings that are required but not set in the .env file */
+  missingGemini?: string[];
+  missingOpenai?: string[];
+
+  /** Path of the .env file that holds every setting */
   configPath: string;
 }
 
