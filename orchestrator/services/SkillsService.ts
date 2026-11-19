@@ -9,7 +9,6 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Service for managing bundled Claude Code skills
- * Skills are installed to ~/.claude/skills during app installation
  */
 export class SkillsService {
   private static readonly SKILLS_DIR_NAME = '.claude/skills';
@@ -22,8 +21,11 @@ export class SkillsService {
    * This is the .claude/skills directory at the project/package root
    */
   static getBundledSkillsPath(): string {
-    // Navigate from dist/orchestrator/services to project root
-    return path.resolve(__dirname, '../../..', this.SKILLS_DIR_NAME);
+    const parent = path.resolve(__dirname, '../..');
+    const packageRoot = fs.existsSync(path.join(parent, 'package.json'))
+      ? parent
+      : path.dirname(parent);
+    return path.join(packageRoot, this.SKILLS_DIR_NAME);
   }
 
   /**
@@ -43,88 +45,39 @@ export class SkillsService {
   }
 
   /**
-   * Copy a directory recursively
-   */
-  private static copyDirRecursive(src: string, dest: string): void {
-    if (!fs.existsSync(dest)) {
-      fs.mkdirSync(dest, { recursive: true });
-    }
-
-    const entries = fs.readdirSync(src, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const srcPath = path.join(src, entry.name);
-      const destPath = path.join(dest, entry.name);
-
-      if (entry.isDirectory()) {
-        this.copyDirRecursive(srcPath, destPath);
-      } else {
-        fs.copyFileSync(srcPath, destPath);
-      }
-    }
-  }
-
-  /**
-   * Install skills from bundled package to user-level ~/.claude/skills
-   * This should be called during app installation (postinstall)
+   * Install bundled Claude Code skills without overwriting local copies.
    */
   static installSkills(): {
     success: boolean;
     installed: string[];
     errors: string[];
   } {
-    const bundledPath = this.getBundledSkillsPath();
-    const userPath = this.getUserSkillsPath();
     const installed: string[] = [];
     const errors: string[] = [];
 
-    if (!fs.existsSync(bundledPath)) {
-      errors.push(`Bundled skills not found at: ${bundledPath}`);
-      return { success: false, installed, errors };
-    }
-
-    // Ensure ~/.claude directory exists
-    const claudeDir = path.dirname(userPath);
-    if (!fs.existsSync(claudeDir)) {
-      try {
-        fs.mkdirSync(claudeDir, { recursive: true });
-      } catch (err) {
-        errors.push(`Failed to create ~/.claude directory: ${err}`);
-        return { success: false, installed, errors };
-      }
-    }
-
-    // Ensure ~/.claude/skills directory exists
-    if (!fs.existsSync(userPath)) {
-      try {
-        fs.mkdirSync(userPath, { recursive: true });
-      } catch (err) {
-        errors.push(`Failed to create skills directory: ${err}`);
-        return { success: false, installed, errors };
-      }
-    }
-
-    // Copy each required skill
     for (const skillName of this.REQUIRED_SKILLS) {
-      const srcSkillPath = path.join(bundledPath, skillName);
-      const destSkillPath = path.join(userPath, skillName);
-
-      if (!fs.existsSync(srcSkillPath)) {
-        errors.push(`Skill not found in bundle: ${skillName}`);
-        continue;
-      }
+      const source = path.join(this.getBundledSkillsPath(), skillName, 'SKILL.md');
+      const destination = path.join(this.getUserSkillsPath(), skillName, 'SKILL.md');
 
       try {
-        // Remove existing skill if present (to update)
-        if (fs.existsSync(destSkillPath)) {
-          fs.rmSync(destSkillPath, { recursive: true, force: true });
+        const bundledSkill = fs.readFileSync(source);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        try {
+          fs.writeFileSync(destination, bundledSkill, { flag: 'wx' });
+          logger.info(`Installed skill: ${skillName} -> ${destination}`);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+            throw error;
+          }
+          if (!bundledSkill.equals(fs.readFileSync(destination))) {
+            errors.push(`Skill already exists with different content at ${destination}. Move it aside to install the bundled copy.`);
+            continue;
+          }
+          logger.info(`Skill already installed: ${skillName} -> ${destination}`);
         }
-
-        this.copyDirRecursive(srcSkillPath, destSkillPath);
         installed.push(skillName);
-        logger.info(`Installed skill: ${skillName} -> ${destSkillPath}`);
-      } catch (err) {
-        errors.push(`Failed to install skill ${skillName}: ${err}`);
+      } catch (error) {
+        errors.push(`Failed to install skill ${skillName}: ${error}`);
       }
     }
 

@@ -137,7 +137,13 @@ drafts/
 
 ## Alternative: Claude Code Skills
 
-If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), this package includes bundled skills that are automatically installed to `~/.claude/skills` during `npm install`. Convert files using natural language:
+The Claude Code skill is optional. Install it into `~/.claude/skills` with:
+
+```bash
+umd skill install
+```
+
+Run this on the host running the web UI to enable its Claude Code option. In Claude Code, you can then convert files using natural language:
 
 ```
 Convert document.pdf to markdown

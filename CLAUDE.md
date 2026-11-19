@@ -77,7 +77,7 @@ orchestrator/
     └── pathInput.ts                # Path input helpers
 
 scripts/
-└── postinstall.js                  # Copies .claude/skills to ~/.claude/skills
+└── postinstall.js                  # Installs web UI dependencies in source checkouts
 
 .claude/skills/
 └── convert-to-markdown/            # Claude Code skill for file conversion

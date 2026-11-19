@@ -23,6 +23,7 @@ async function getVersion(): Promise<string> {
 
 import { registerConvertCommand } from './commands/ConvertCommand.js';
 import { registerSetupCommand } from './commands/SetupCommand.js';
+import { registerSkillCommand } from './commands/SkillCommand.js';
 import { registerOrchestrateCommand } from '../orchestrator/index.js';
 
 /**
@@ -40,6 +41,7 @@ async function main() {
     .version(version);
 
   registerSetupCommand(program);
+  registerSkillCommand(program);
   registerConvertCommand(program);
   registerOrchestrateCommand(program);
 

@@ -302,7 +302,7 @@ export default function FileBrowser() {
                     skillsStatus?.claudeCodeReady
                       ? "Use Claude Code with Opus model and convert-to-markdown skill for higher quality conversion"
                       : skillsStatus?.missingSkills?.length
-                        ? `Missing skills: ${skillsStatus.missingSkills.join(', ')}. Ensure .claude/skills directory is present.`
+                        ? `Missing skills: ${skillsStatus.missingSkills.join(', ')}. Run umd skill install on the host running the web UI.`
                         : "Claude Code skills not available"
                   }
                 >

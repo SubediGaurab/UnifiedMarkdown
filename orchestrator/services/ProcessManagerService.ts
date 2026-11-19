@@ -262,7 +262,7 @@ export class ProcessManagerService {
       // Verify skills are available at user level before proceeding
       const skillsVerification = SkillsService.verifyClaudeCodeSkills();
       if (!skillsVerification.valid) {
-        const error = `Missing required skills: ${skillsVerification.missing.join(', ')}. Run 'umd install-skills' or reinstall the package.`;
+        const error = `Missing required skills: ${skillsVerification.missing.join(', ')}. Run 'umd skill install'.`;
         logger.error(error);
         resolve({
           filePath: file.path,
